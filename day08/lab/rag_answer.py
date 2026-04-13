@@ -383,34 +383,80 @@ Answer:"""
 
 def call_llm(prompt: str) -> str:
     """
-    Gọi LLM để sinh câu trả lời.
+    Gọi LLM để sinh câu trả lời dựa trên prompt đã được build sẵn.
 
-    TODO Sprint 2:
-    Chọn một trong hai:
+    Thứ tự ưu tiên:
+      1. OpenAI (nếu có OPENAI_API_KEY)
+      2. Google Gemini (nếu có GOOGLE_API_KEY)
+    Nếu không có key nào → raise EnvironmentError rõ ràng.
 
-    Option A — OpenAI (cần OPENAI_API_KEY):
-        from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        response = client.chat.completions.create(
-            model=LLM_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,     # temperature=0 để output ổn định, dễ đánh giá
-            max_tokens=512,
-        )
-        return response.choices[0].message.content
+    Args:
+        prompt: Full prompt đã bao gồm system instruction + context + query.
 
-    Option B — Google Gemini (cần GOOGLE_API_KEY):
-        import google.generativeai as genai
-        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(prompt)
-        return response.text
+    Returns:
+        Chuỗi câu trả lời từ LLM.
 
-    Lưu ý: Dùng temperature=0 hoặc thấp để output ổn định cho evaluation.
+    Sprint 2 (Person 3 - Task 2C):
+    - temperature=0 để output ổn định, dễ đánh giá
+    - max_tokens=512 đủ cho câu trả lời ngắn có citation
+    - Xử lý lỗi API: rate limit, network, auth → trả về thông báo rõ ràng
     """
-    raise NotImplementedError(
-        "TODO Sprint 2: Implement call_llm().\n"
-        "Chọn Option A (OpenAI) hoặc Option B (Gemini) trong TODO comment."
+    openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+    google_key = os.getenv("GOOGLE_API_KEY", "").strip()
+
+    # ── Option A: OpenAI ──────────────────────────────────────────────────────
+    if openai_key:
+        try:
+            from openai import OpenAI, APIError, APIConnectionError, RateLimitError, AuthenticationError
+
+            client = OpenAI(api_key=openai_key)
+            response = client.chat.completions.create(
+                model=LLM_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+                max_tokens=512,
+            )
+            return response.choices[0].message.content.strip()
+
+        except AuthenticationError:
+            raise EnvironmentError("OPENAI_API_KEY không hợp lệ hoặc hết hạn.")
+        except RateLimitError:
+            raise RuntimeError("OpenAI rate limit — thử lại sau vài giây.")
+        except APIConnectionError as e:
+            raise RuntimeError(f"Không kết nối được đến OpenAI: {e}")
+        except APIError as e:
+            raise RuntimeError(f"OpenAI API lỗi ({e.status_code}): {e.message}")
+
+    # ── Option B: Google Gemini ───────────────────────────────────────────────
+    if google_key:
+        try:
+            import google.generativeai as genai
+            from google.api_core.exceptions import (
+                PermissionDenied, ResourceExhausted, GoogleAPICallError
+            )
+
+            genai.configure(api_key=google_key)
+            model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+            gemini_model = genai.GenerativeModel(
+                model_name=model_name,
+                generation_config=genai.GenerationConfig(
+                    temperature=0,
+                    max_output_tokens=512,
+                ),
+            )
+            response = gemini_model.generate_content(prompt)
+            return response.text.strip()
+
+        except PermissionDenied:
+            raise EnvironmentError("GOOGLE_API_KEY không hợp lệ hoặc không có quyền.")
+        except ResourceExhausted:
+            raise RuntimeError("Gemini quota đã hết — thử lại sau.")
+        except GoogleAPICallError as e:
+            raise RuntimeError(f"Gemini API lỗi: {e}")
+
+    # ── Không có key nào ─────────────────────────────────────────────────────
+    raise EnvironmentError(
+        "Cần ít nhất một trong hai: OPENAI_API_KEY hoặc GOOGLE_API_KEY trong file .env"
     )
 
 
