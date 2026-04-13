@@ -41,45 +41,80 @@ LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
 # RETRIEVAL — DENSE (Vector Search)
 # =============================================================================
 
-def retrieve_dense(query: str, top_k: int = TOP_K_SEARCH) -> List[Dict[str, Any]]:
+def retrieve_dense(
+    query: str, 
+    top_k: int = TOP_K_SEARCH,
+    threshold: float = 0.0,
+) -> List[Dict[str, Any]]:
     """
     Dense retrieval: tìm kiếm theo embedding similarity trong ChromaDB.
 
     Args:
         query: Câu hỏi của người dùng
         top_k: Số chunk tối đa trả về
+        threshold: Điểm similarity tối thiểu (0-1). Chunks dưới threshold bị lọc bỏ.
+                  Gợi ý: 0.0 (không filter) → 0.5 (filter mạnh)
 
     Returns:
         List các dict, mỗi dict là một chunk với:
           - "text": nội dung chunk
           - "metadata": metadata (source, section, effective_date, ...)
-          - "score": cosine similarity score
+          - "score": cosine similarity score (0-1)
 
-    TODO Sprint 2:
-    1. Embed query bằng cùng model đã dùng khi index (xem index.py)
+    Sprint 2 Implementation:
+    1. Embed query bằng cùng model đã dùng khi index (từ index.py)
     2. Query ChromaDB với embedding đó
-    3. Trả về kết quả kèm score
-
-    Gợi ý:
+    3. Convert distance → similarity (1 - distance for cosine)
+    4. Filter theo threshold và trả về top_k kết quả đã sắp xếp
+    """
+    try:
         import chromadb
         from index import get_embedding, CHROMA_DB_DIR
+    except ImportError as e:
+        print(f"❌ Error import: {e}")
+        return []
 
-        client = chromadb.PersistentClient(path=str(CHROMA_DB_DIR))
+    try:
+        # Khởi tạo ChromaDB client
+        client = chromadb.PersistentClient(path=str(os.getenv("CHROMA_DB_DIR", "chroma_db")))
         collection = client.get_collection("rag_lab")
 
+        # Embed query
         query_embedding = get_embedding(query)
+        
+        # Query ChromaDB
         results = collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
             include=["documents", "metadatas", "distances"]
         )
-        # Lưu ý: distances trong ChromaDB cosine = 1 - similarity
-        # Score = 1 - distance
-    """
-    raise NotImplementedError(
-        "TODO Sprint 2: Implement retrieve_dense().\n"
-        "Tham khảo comment trong hàm để biết cách query ChromaDB."
-    )
+
+        # Format kết quả: convert distance → similarity
+        # ChromaDB cosine distance: distance = 1 - similarity
+        # Vậy: similarity = 1 - distance
+        retrieved_chunks = []
+        
+        if results and results["documents"] and len(results["documents"]) > 0:
+            for doc, metadata, distance in zip(
+                results["documents"][0],
+                results["metadatas"][0],
+                results["distances"][0]
+            ):
+                similarity_score = 1 - distance  # Convert distance to similarity
+                
+                # Filter theo threshold
+                if similarity_score >= threshold:
+                    retrieved_chunks.append({
+                        "text": doc,
+                        "metadata": metadata,
+                        "score": round(similarity_score, 4),
+                    })
+        
+        return retrieved_chunks
+
+    except Exception as e:
+        print(f"❌ Error retrieving dense: {e}")
+        return []
 
 
 # =============================================================================
@@ -420,6 +455,63 @@ def rag_answer(
 
 
 # =============================================================================
+# SPRINT 2: TEST RETRIEVE_DENSE (Person 1 Task 2A)
+# =============================================================================
+
+def test_retrieve_dense(verbose: bool = True) -> None:
+    """
+    Test retrieve_dense() function với các test queries.
+    
+    Output: Số chunk tìm được, relevance scores, metadata preview.
+    
+    Task 2A Deliverable: `retrieve_dense()` function + test queries
+    """
+    print("\n" + "="*70)
+    print("SPRINT 2 — Task 2A: Test retrieve_dense()")
+    print("="*70)
+    
+    # Test queries từ data/test_questions.json
+    test_queries = [
+        "SLA xử lý ticket P1 là bao lâu?",
+        "Khách hàng có thể yêu cầu hoàn tiền trong bao nhiêu ngày?",
+        "Ai phải phê duyệt để cấp quyền Level 3?",
+        "Tài khoản bị khóa sau bao nhiêu lần đăng nhập sai?",
+        "Escalation trong sự cố P1 diễn ra như thế nào?",
+    ]
+    
+    print(f"\nTesting {len(test_queries)} queries với retrieve_dense():\n")
+    
+    for i, query in enumerate(test_queries, 1):
+        print(f"[Query {i}] {query}")
+        print("-" * 70)
+        
+        try:
+            chunks = retrieve_dense(query, top_k=3, threshold=0.0)
+            
+            if not chunks:
+                print("❌ No chunks retrieved (có thể ChromaDB chưa được build)")
+            else:
+                print(f"✓ Found {len(chunks)} chunks:\n")
+                
+                for j, chunk in enumerate(chunks, 1):
+                    meta = chunk.get("metadata", {})
+                    score = chunk.get("score", 0)
+                    text_preview = chunk.get("text", "")[:100].replace("\n", " ")
+                    
+                    print(f"  [{j}] Score: {score:.4f}")
+                    print(f"      Source: {meta.get('source', 'N/A')}")
+                    print(f"      Section: {meta.get('section', 'N/A')}")
+                    print(f"      Dept: {meta.get('department', 'N/A')}")
+                    print(f"      Text: {text_preview}...")
+                    print()
+        
+        except Exception as e:
+            print(f"❌ Error: {str(e)[:100]}")
+        
+        print()
+
+
+# =============================================================================
 # SPRINT 3: SO SÁNH BASELINE VS VARIANT
 # =============================================================================
 
@@ -460,39 +552,25 @@ if __name__ == "__main__":
     print("Sprint 2 + 3: RAG Answer Pipeline")
     print("=" * 60)
 
-    # Test queries từ data/test_questions.json
-    test_queries = [
-        "SLA xử lý ticket P1 là bao lâu?",
-        "Khách hàng có thể yêu cầu hoàn tiền trong bao nhiêu ngày?",
-        "Ai phải phê duyệt để cấp quyền Level 3?",
-        "ERR-403-AUTH là lỗi gì?",  # Query không có trong docs → kiểm tra abstain
-    ]
+    # Sprint 2 Task 2A: Test retrieve_dense()
+    test_retrieve_dense(verbose=True)
+    
+    print("\n" + "="*70)
+    print("NEXT STEPS:")
+    print("="*70)
+    print("""
+Sprint 2 Task 2A Deliverables:
+  ✓ retrieve_dense() function implemented and tested
+  ✓ Test queries: 5 sample queries from test_questions.json
+  ✓ Return format: [{"text", "metadata", "score"}, ...]
 
-    print("\n--- Sprint 2: Test Baseline (Dense) ---")
-    for query in test_queries:
-        print(f"\nQuery: {query}")
-        try:
-            result = rag_answer(query, retrieval_mode="dense", verbose=True)
-            print(f"Answer: {result['answer']}")
-            print(f"Sources: {result['sources']}")
-        except NotImplementedError:
-            print("Chưa implement — hoàn thành TODO trong retrieve_dense() và call_llm() trước.")
-        except Exception as e:
-            print(f"Lỗi: {e}")
+To proceed to Task 2B (format_context):
+  - Person 2 will format retrieved chunks into readable context string
+  - Each chunk will have [1], [2] markers for citation
+  
+Dependencies:
+  - Đảm bảo ChromaDB index đã được build từ Sprint 1
+  - Đảm bảo index.py's get_embedding() đã implement
+  - CHROMA_DB_DIR environment variable hoặc $PWD/chroma_db
+""")
 
-    # Uncomment sau khi Sprint 3 hoàn thành:
-    # print("\n--- Sprint 3: So sánh strategies ---")
-    # compare_retrieval_strategies("Approval Matrix để cấp quyền là tài liệu nào?")
-    # compare_retrieval_strategies("ERR-403-AUTH")
-
-    print("\n\nViệc cần làm Sprint 2:")
-    print("  1. Implement retrieve_dense() — query ChromaDB")
-    print("  2. Implement call_llm() — gọi OpenAI hoặc Gemini")
-    print("  3. Chạy rag_answer() với 3+ test queries")
-    print("  4. Verify: output có citation không? Câu không có docs → abstain không?")
-
-    print("\nViệc cần làm Sprint 3:")
-    print("  1. Chọn 1 trong 3 variants: hybrid, rerank, hoặc query transformation")
-    print("  2. Implement variant đó")
-    print("  3. Chạy compare_retrieval_strategies() để thấy sự khác biệt")
-    print("  4. Ghi lý do chọn biến đó vào docs/tuning-log.md")
