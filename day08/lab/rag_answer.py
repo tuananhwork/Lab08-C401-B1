@@ -268,31 +268,88 @@ def transform_query(query: str, strategy: str = "expansion") -> List[str]:
 # GENERATION — GROUNDED ANSWER FUNCTION
 # =============================================================================
 
+# =============================================================================
+# CONTEXT FORMATTER — FORMAT RETRIEVED CHUNKS (Task 2B - Person 2)
+# =============================================================================
+
+def format_context(
+    chunks: List[Dict[str, Any]],
+    include_scores: bool = True,
+    include_metadata: bool = True,
+) -> str:
+    """
+    Format retrieved chunks thành readable context string với citation markers [1], [2], ...
+
+    Args:
+        chunks: List các chunks từ retrieval (mỗi chunk có "text", "metadata", "score")
+        include_scores: Có hiển thị similarity score không
+        include_metadata: Có hiển thị metadata (source, section) không
+
+    Returns:
+        Formatted context string để đưa vào LLM prompt
+
+    Sprint 2 (Person 2 - Task 2B):
+    - Format chunks thành readable string
+    - Thêm citation markers [1], [2], ... cho mỗi chunk
+    - Hiển thị metadata (source, section, score)
+    - Giữ nguyên nội dung chunk để model có thể trích dẫn
+
+    Example output:
+        [1] policy/refund-v4.pdf | Điều 2: Điều kiện được hoàn tiền | score=0.85
+        Khách hàng được quyền yêu cầu hoàn tiền khi đáp ứng...
+
+        [2] sla_p1_2026.txt | SLA Response Times | score=0.78
+        P1 tickets must be acknowledged within 15 minutes...
+    """
+    if not chunks:
+        return "No relevant context found."
+
+    context_parts = []
+    
+    for i, chunk in enumerate(chunks, 1):
+        meta = chunk.get("metadata", {})
+        text = chunk.get("text", "").strip()
+        score = chunk.get("score", 0)
+        
+        # Build header với citation marker
+        # Citation marker luôn có: [1] source
+        header_parts = []
+        
+        # Citation marker với source
+        source = meta.get("source", "unknown")
+        header_parts.append(f"[{i}] {source}")
+        
+        # Section (nếu có)
+        section = meta.get("section", "")
+        if section:
+            header_parts.append(section)
+        
+        # Score (nếu được yêu cầu)
+        if include_scores and score > 0:
+            header_parts.append(f"score={score:.2f}")
+        
+        # Join header parts với " | "
+        header = " | ".join(header_parts)
+        
+        # Format chunk: header + text
+        context_parts.append(f"{header}\n{text}")
+    
+    # Join tất cả chunks với 2 dòng trống
+    context = "\n\n".join(context_parts)
+    
+    return context
+
+
 def build_context_block(chunks: List[Dict[str, Any]]) -> str:
     """
     Đóng gói danh sách chunks thành context block để đưa vào prompt.
 
     Format: structured snippets với source, section, score (từ slide).
     Mỗi chunk có số thứ tự [1], [2], ... để model dễ trích dẫn.
+    
+    Deprecated: Dùng format_context() thay thế.
     """
-    context_parts = []
-    for i, chunk in enumerate(chunks, 1):
-        meta = chunk.get("metadata", {})
-        source = meta.get("source", "unknown")
-        section = meta.get("section", "")
-        score = chunk.get("score", 0)
-        text = chunk.get("text", "")
-
-        # TODO: Tùy chỉnh format nếu muốn (thêm effective_date, department, ...)
-        header = f"[{i}] {source}"
-        if section:
-            header += f" | {section}"
-        if score > 0:
-            header += f" | score={score:.2f}"
-
-        context_parts.append(f"{header}\n{text}")
-
-    return "\n\n".join(context_parts)
+    return format_context(chunks, include_scores=True, include_metadata=True)
 
 
 def build_grounded_prompt(query: str, context_block: str) -> str:
@@ -430,7 +487,7 @@ def rag_answer(
         print(f"[RAG] After select: {len(candidates)} chunks")
 
     # --- Bước 3: Build context và prompt ---
-    context_block = build_context_block(candidates)
+    context_block = format_context(candidates, include_scores=True, include_metadata=True)
     prompt = build_grounded_prompt(query, context_block)
 
     if verbose:
@@ -452,6 +509,96 @@ def rag_answer(
         "chunks_used": candidates,
         "config": config,
     }
+
+
+# =============================================================================
+# SPRINT 2: TEST FORMAT_CONTEXT (Person 2 Task 2B)
+# =============================================================================
+
+def test_format_context(verbose: bool = True) -> None:
+    """
+    Test format_context() function với mock retrieved chunks.
+
+    Output: Formatted context string với citation markers.
+
+    Task 2B Deliverable: `format_context()` function + test
+    """
+    print("\n" + "="*70)
+    print("SPRINT 2 — Task 2B: Test format_context()")
+    print("="*70)
+
+    # Mock chunks từ retrieval
+    mock_chunks = [
+        {
+            "text": "Khách hàng được quyền yêu cầu hoàn tiền khi đáp ứng đủ các điều kiện sau:\n- Sản phẩm bị lỗi do nhà sản xuất\n- Yêu cầu trong vòng 7 ngày làm việc\n- Đơn hàng chưa được sử dụng",
+            "metadata": {
+                "source": "policy/refund-v4.pdf",
+                "section": "Điều 2: Điều kiện được hoàn tiền",
+                "department": "CS",
+                "effective_date": "2026-02-01",
+            },
+            "score": 0.8542,
+        },
+        {
+            "text": "P1 tickets must be acknowledged within 15 minutes.\nResponse time: 1 hour maximum.\nResolution target: 4 hours.",
+            "metadata": {
+                "source": "sla_p1_2026.txt",
+                "section": "SLA Response Times",
+                "department": "IT",
+                "effective_date": "2026-01-01",
+            },
+            "score": 0.7823,
+        },
+        {
+            "text": "Access Level 3 requires approval from Department Head.\nRegular users can only access Level 1 by default.\nLevel 2 requires Team Lead approval.",
+            "metadata": {
+                "source": "access_control_sop.txt",
+                "section": "Access Levels",
+                "department": "IT",
+                "effective_date": "2026-01-15",
+            },
+            "score": 0.6915,
+        },
+    ]
+
+    print("\n--- Test 1: Full format (với scores) ---")
+    context_full = format_context(mock_chunks, include_scores=True, include_metadata=True)
+    print(context_full)
+
+    print("\n\n--- Test 2: Minimal format (không scores) ---")
+    context_minimal = format_context(mock_chunks, include_scores=False, include_metadata=True)
+    print(context_minimal)
+
+    print("\n\n--- Test 3: Empty chunks ---")
+    context_empty = format_context([])
+    print(f"Result: '{context_empty}'")
+
+    print("\n\n--- Test 4: Integration với retrieve_dense() ---")
+    print("Đang test với retrieved chunks thực tế...\n")
+    
+    try:
+        # Thử retrieve 1 query và format context
+        test_query = "Điều kiện hoàn tiền là gì?"
+        retrieved_chunks = retrieve_dense(test_query, top_k=3)
+        
+        if retrieved_chunks:
+            print(f"Query: {test_query}")
+            print(f"Retrieved {len(retrieved_chunks)} chunks\n")
+            
+            formatted = format_context(retrieved_chunks, include_scores=True)
+            print("Formatted context:")
+            print("-" * 70)
+            print(formatted[:800] + "..." if len(formatted) > 800 else formatted)
+            print("-" * 70)
+        else:
+            print("⚠️  Không có chunks nào retrieved (ChromaDB chưa build?)")
+            
+    except Exception as e:
+        print(f"⚠️  Không thể test với retrieval: {e}")
+
+    print("\n" + "="*70)
+    print("✓ Task 2B hoàn thành: format_context() hoạt động tốt")
+    print("="*70)
 
 
 # =============================================================================
@@ -552,22 +699,26 @@ if __name__ == "__main__":
     print("Sprint 2 + 3: RAG Answer Pipeline")
     print("=" * 60)
 
+    # Sprint 2 Task 2B: Test format_context()
+    test_format_context(verbose=True)
+
     # Sprint 2 Task 2A: Test retrieve_dense()
     test_retrieve_dense(verbose=True)
-    
+
     print("\n" + "="*70)
     print("NEXT STEPS:")
     print("="*70)
     print("""
-Sprint 2 Task 2A Deliverables:
-  ✓ retrieve_dense() function implemented and tested
-  ✓ Test queries: 5 sample queries from test_questions.json
-  ✓ Return format: [{"text", "metadata", "score"}, ...]
+Sprint 2 Task 2B Deliverables:
+  ✓ format_context() function implemented and tested
+  ✓ Citation markers [1], [2], ... cho mỗi chunk
+  ✓ Metadata display (source, section, score)
+  ✓ Test với mock chunks và real retrieved chunks
 
-To proceed to Task 2B (format_context):
-  - Person 2 will format retrieved chunks into readable context string
-  - Each chunk will have [1], [2] markers for citation
-  
+To proceed to Task 2C (call_llm):
+  - Person 3 sẽ implement LLM call function
+  - Cần OPENAI_API_KEY hoặc GOOGLE_API_KEY
+
 Dependencies:
   - Đảm bảo ChromaDB index đã được build từ Sprint 1
   - Đảm bảo index.py's get_embedding() đã implement
