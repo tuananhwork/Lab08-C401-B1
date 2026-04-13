@@ -113,7 +113,13 @@ def retrieve_dense(
         return retrieved_chunks
 
     except Exception as e:
-        print(f"❌ Error retrieving dense: {e}")
+        if "does not exist" in str(e) and "rag_lab" in str(e):
+            print(
+                "❌ Error retrieving dense: Collection [rag_lab] does not exist. "
+                "Hãy chạy build_index() trong index.py trước."
+            )
+        else:
+            print(f"❌ Error retrieving dense: {e}")
         return []
 
 

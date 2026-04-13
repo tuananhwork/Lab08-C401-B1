@@ -18,7 +18,6 @@ A/B Rule (từ slide):
 """
 
 import json
-import csv
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -443,7 +442,7 @@ def run_scorecard(
 def compare_ab(
     baseline_results: List[Dict],
     variant_results: List[Dict],
-    output_csv: Optional[str] = None,
+    output_json: Optional[str] = None,
 ) -> None:
     """
     So sánh baseline vs variant theo từng câu hỏi và tổng thể.
@@ -508,17 +507,15 @@ def compare_ab(
 
         print(f"{qid:<6} {b_scores_str:<22} {v_scores_str:<22} {better:<10}")
 
-    # Export to CSV
-    if output_csv:
+    # Export to JSON
+    if output_json:
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-        csv_path = RESULTS_DIR / output_csv
+        json_path = RESULTS_DIR / output_json
         combined = baseline_results + variant_results
         if combined:
-            with open(csv_path, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=combined[0].keys())
-                writer.writeheader()
-                writer.writerows(combined)
-            print(f"\nKết quả đã lưu vào: {csv_path}")
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(combined, f, ensure_ascii=False, indent=2)
+            print(f"\nKết quả đã lưu vào: {json_path}")
 
 
 # =============================================================================
@@ -635,12 +632,12 @@ if __name__ == "__main__":
     compare_ab(
         baseline_results,
         variant_results,
-        output_csv="grading_run.json"
+        output_json="grading_run.json"
     )
 
     print("\n" + "="*70)
     print("✓ Sprint 4 Evaluation hoàn thành!")
     print(f"  - Baseline scorecard: {scorecard_path}")
     print(f"  - Variant scorecard: {variant_scorecard_path}")
-    print(f"  - Raw results CSV: {RESULTS_DIR / 'grading_run.json'}")
+    print(f"  - Raw results JSON: {RESULTS_DIR / 'grading_run.json'}")
     print("="*70)

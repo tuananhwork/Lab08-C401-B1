@@ -462,7 +462,7 @@ def build_index(docs_dir: Path = DOCS_DIR, db_dir: Path = CHROMA_DB_DIR) -> None
         total_chunks += len(chunks)
 
     print(f"\nHoàn thành! Tổng số chunks: {total_chunks}")
-    print("Lưu ý: Embedding chưa được implement. Xem TODO trong get_embedding() và build_index().")
+    print("Index đã được build và lưu vào ChromaDB.")
 
 
 # =============================================================================
@@ -587,10 +587,9 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"\n  [WARN] Không test được embedding: {e}")
 
-    # Bước 3: Build index (yêu cầu implement get_embedding)
+    # Bước 3: Build index
     print("\n--- Build Full Index ---")
-    print("Lưu ý: Cần implement get_embedding() trước khi chạy bước này!")
-    # Uncomment dòng dưới sau khi implement get_embedding():
+    print("Uncomment dòng dưới để build toàn bộ index vào ChromaDB:")
     # build_index()
 
     # Bước 4: Kiểm tra index
