@@ -72,30 +72,61 @@ def score_faithfulness(
       3: Phần lớn grounded, một số thông tin có thể từ model knowledge
       2: Nhiều thông tin không có trong retrieved chunks
       1: Câu trả lời không grounded, phần lớn là model bịa
-
-    TODO Sprint 4 — Có 2 cách chấm:
-
-    Cách 1 — Chấm thủ công (Manual, đơn giản):
-        Đọc answer và chunks_used, chấm điểm theo thang trên.
-        Ghi lý do ngắn gọn vào "notes".
-
-    Cách 2 — LLM-as-Judge (Tự động, nâng cao):
-        Gửi prompt cho LLM:
-            "Given these retrieved chunks: {chunks}
-             And this answer: {answer}
-             Rate the faithfulness on a scale of 1-5.
-             5 = completely grounded in the provided context.
-             1 = answer contains information not in the context.
-             Output JSON: {'score': <int>, 'reason': '<string>'}"
-
-    Trả về dict với: score (1-5) và notes (lý do)
     """
-    # TODO Sprint 4: Implement scoring
-    # Tạm thời trả về None (yêu cầu chấm thủ công)
-    return {
-        "score": None,
-        "notes": "TODO: Chấm thủ công hoặc implement LLM-as-Judge",
-    }
+    if not answer or answer.startswith(("ERROR:", "PIPELINE_NOT_IMPLEMENTED")):
+        return {"score": 1, "notes": "Answer is empty or error"}
+
+    if not chunks_used:
+        return {"score": 1, "notes": "No chunks used - answer not grounded"}
+
+    # Combine all chunk texts
+    context_text = " ".join([c.get("text", "") for c in chunks_used])
+    context_lower = context_text.lower()
+    answer_lower = answer.lower()
+
+    # Simple heuristic: check if key phrases from answer exist in context
+    # Split answer into sentences/phrases and check coverage
+    sentences = [s.strip() for s in answer.replace("\n", ". ").split(".") if s.strip()]
+    
+    if not sentences:
+        return {"score": 1, "notes": "Answer has no sentences"}
+
+    grounded_count = 0
+    ungrounded_sentences = []
+    
+    for sentence in sentences:
+        # Check if at least some key words from sentence exist in context
+        words = sentence.split()
+        if len(words) < 3:  # Skip very short phrases
+            grounded_count += 1
+            continue
+            
+        # Check if 50%+ of key words appear in context
+        matched_words = sum(1 for w in words if w.lower() in context_lower)
+        if matched_words / len(words) >= 0.5:
+            grounded_count += 1
+        else:
+            ungrounded_sentences.append(sentence[:60])
+
+    grounded_ratio = grounded_count / len(sentences)
+    
+    if grounded_ratio >= 0.95:
+        score = 5
+        notes = "All information grounded in context"
+    elif grounded_ratio >= 0.8:
+        score = 4
+        notes = f"Mostly grounded, {len(ungrounded_sentences)} minor detail uncertain"
+    elif grounded_ratio >= 0.6:
+        score = 3
+        notes = f"Partially grounded, some info may be from model knowledge"
+    elif grounded_ratio >= 0.4:
+        score = 2
+        notes = f"Many ungrounded details: {ungrounded_sentences[0] if ungrounded_sentences else '...'}"
+    else:
+        score = 1
+        notes = "Answer not grounded in retrieved context"
+
+    return {"score": score, "notes": notes}
 
 
 def score_answer_relevance(
@@ -112,13 +143,58 @@ def score_answer_relevance(
       3: Trả lời có liên quan nhưng chưa đúng trọng tâm
       2: Trả lời lạc đề một phần
       1: Không trả lời câu hỏi
-
-    TODO Sprint 4: Implement tương tự score_faithfulness
     """
-    return {
-        "score": None,
-        "notes": "TODO: Implement score_answer_relevance",
-    }
+    if not answer or answer.startswith(("ERROR:", "PIPELINE_NOT_IMPLEMENTED")):
+        return {"score": 1, "notes": "Answer is empty or error"}
+
+    # Check if answer directly addresses the query
+    query_lower = query.lower()
+    answer_lower = answer.lower()
+    
+    # Extract key terms from query (nouns, verbs, important words)
+    query_words = set(w for w in query_lower.split() if len(w) > 3)
+    
+    # Count how many query key words appear in answer
+    matched_terms = sum(1 for w in query_words if w in answer_lower)
+    term_coverage = matched_terms / len(query_words) if query_words else 0
+    
+    # Check for direct answer patterns
+    has_direct_answer = any([
+        any(d in answer_lower for d in ["là ", "có ", "được ", "phải "]),
+        answer_lower.startswith(("không", "có", "đúng", "sai")),
+        len(answer_lower) > 20  # Has substantial content
+    ])
+    
+    # Check for abstention (which might be appropriate)
+    is_abstention = any([
+        "không đủ dữ liệu" in answer_lower,
+        "không tìm thấy" in answer_lower,
+        "không biết" in answer_lower,
+        "không có thông tin" in answer_lower
+    ])
+    
+    # Score based on coverage and directness
+    if is_abstention:
+        # Abstention can be relevant if context is insufficient
+        score = 4 if term_coverage < 0.3 else 3
+        notes = "Model abstained - appropriate if context insufficient"
+    elif term_coverage >= 0.8 and has_direct_answer:
+        score = 5
+        notes = "Directly and fully answers the question"
+    elif term_coverage >= 0.6 and has_direct_answer:
+        score = 4
+        notes = "Answers correctly but missing some details"
+    elif term_coverage >= 0.4:
+        score = 3
+        notes = "Related answer but not fully on point"
+    elif term_coverage >= 0.2:
+        score = 2
+        notes = "Partially off-topic"
+    else:
+        score = 1
+        notes = "Does not answer the question"
+
+    return {"score": score, "notes": notes}
 
 
 def score_context_recall(
@@ -192,18 +268,63 @@ def score_completeness(
       3: Thiếu một số thông tin quan trọng
       2: Thiếu nhiều thông tin quan trọng
       1: Thiếu phần lớn nội dung cốt lõi
-
-    TODO Sprint 4:
-    Option 1 — Chấm thủ công: So sánh answer vs expected_answer và chấm.
-    Option 2 — LLM-as-Judge:
-        "Compare the model answer with the expected answer.
-         Rate completeness 1-5. Are all key points covered?
-         Output: {'score': int, 'missing_points': [str]}"
     """
-    return {
-        "score": None,
-        "notes": "TODO: Implement score_completeness (so sánh với expected_answer)",
-    }
+    if not answer or answer.startswith(("ERROR:", "PIPELINE_NOT_IMPLEMENTED")):
+        return {"score": 1, "notes": "Answer is empty or error"}
+
+    if not expected_answer:
+        return {"score": None, "notes": "No expected answer provided"}
+
+    # Extract key information from expected answer (numbers, key terms)
+    expected_lower = expected_answer.lower()
+    answer_lower = answer.lower()
+    
+    # Split expected into key points (by sentences or clauses)
+    expected_points = [p.strip() for p in expected_lower.replace("\n", ". ").split(".") if p.strip()]
+    
+    if not expected_points:
+        return {"score": None, "notes": "Expected answer has no content"}
+
+    # Check how many expected points are covered in the answer
+    covered_points = 0
+    missing_points = []
+    
+    for point in expected_points:
+        # Extract meaningful words (skip very short words)
+        key_words = [w for w in point.split() if len(w) > 2]
+        
+        if not key_words:
+            covered_points += 1
+            continue
+        
+        # Check if most key words appear in answer
+        matched = sum(1 for w in key_words if w in answer_lower)
+        coverage = matched / len(key_words)
+        
+        if coverage >= 0.6:  # 60% overlap means point is covered
+            covered_points += 1
+        else:
+            missing_points.append(point[:50])
+
+    completeness_ratio = covered_points / len(expected_points)
+    
+    if completeness_ratio >= 0.95:
+        score = 5
+        notes = "All key points covered"
+    elif completeness_ratio >= 0.8:
+        score = 4
+        notes = f"Missing 1 minor detail"
+    elif completeness_ratio >= 0.6:
+        score = 3
+        notes = f"Missing some important points: {missing_points[0] if missing_points else '...'}"
+    elif completeness_ratio >= 0.4:
+        score = 2
+        notes = f"Missing many key points"
+    else:
+        score = 1
+        notes = "Missing most of the required information"
+
+    return {"score": score, "notes": notes}
 
 
 # =============================================================================
@@ -458,60 +579,29 @@ if __name__ == "__main__":
             test_questions = json.load(f)
         print(f"Tìm thấy {len(test_questions)} câu hỏi")
 
-        # In preview
-        for q in test_questions[:3]:
-            print(f"  [{q['id']}] {q['question']} ({q['category']})")
-        print("  ...")
-
     except FileNotFoundError:
-        print("Không tìm thấy file test_questions.json!")
+        print(f"❌ Không tìm thấy file test_questions.json!")
         test_questions = []
+        exit(1)
 
     # --- Chạy Baseline ---
-    print("\n--- Chạy Baseline ---")
-    print("Lưu ý: Cần hoàn thành Sprint 2 trước khi chạy scorecard!")
-    try:
-        baseline_results = run_scorecard(
-            config=BASELINE_CONFIG,
-            test_questions=test_questions,
-            verbose=True,
-        )
+    print("\n" + "="*70)
+    print("CHẠY BASELINE SCORECARD (Task 4B)")
+    print("="*70)
+    
+    baseline_results = run_scorecard(
+        config=BASELINE_CONFIG,
+        test_questions=test_questions,
+        verbose=True,
+    )
 
-        # Save scorecard
-        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-        baseline_md = generate_scorecard_summary(baseline_results, "baseline_dense")
-        scorecard_path = RESULTS_DIR / "scorecard_baseline.md"
-        scorecard_path.write_text(baseline_md, encoding="utf-8")
-        print(f"\nScorecard lưu tại: {scorecard_path}")
+    # Save scorecard baseline
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    baseline_md = generate_scorecard_summary(baseline_results, "baseline_dense")
+    scorecard_path = RESULTS_DIR / "scorecard_baseline.md"
+    scorecard_path.write_text(baseline_md, encoding="utf-8")
+    print(f"\n✓ Scorecard baseline lưu tại: {scorecard_path}")
 
-    except NotImplementedError:
-        print("Pipeline chưa implement. Hoàn thành Sprint 2 trước.")
-        baseline_results = []
-
-    # --- Chạy Variant (sau khi Sprint 3 hoàn thành) ---
-    # TODO Sprint 4: Uncomment sau khi implement variant trong rag_answer.py
-    # print("\n--- Chạy Variant ---")
-    # variant_results = run_scorecard(
-    #     config=VARIANT_CONFIG,
-    #     test_questions=test_questions,
-    #     verbose=True,
-    # )
-    # variant_md = generate_scorecard_summary(variant_results, VARIANT_CONFIG["label"])
-    # (RESULTS_DIR / "scorecard_variant.md").write_text(variant_md, encoding="utf-8")
-
-    # --- A/B Comparison ---
-    # TODO Sprint 4: Uncomment sau khi có cả baseline và variant
-    # if baseline_results and variant_results:
-    #     compare_ab(
-    #         baseline_results,
-    #         variant_results,
-    #         output_csv="ab_comparison.csv"
-    #     )
-
-    print("\n\nViệc cần làm Sprint 4:")
-    print("  1. Hoàn thành Sprint 2 + 3 trước")
-    print("  2. Chấm điểm thủ công hoặc implement LLM-as-Judge trong score_* functions")
-    print("  3. Chạy run_scorecard(BASELINE_CONFIG)")
-    print("  4. Chạy run_scorecard(VARIANT_CONFIG)")
-    print("  5. Gọi compare_ab() để thấy delta")
-    print("  6. Cập nhật docs/tuning-log.md với kết quả và nhận xét")
+    print("\n" + "="*70)
+    print("✓ Task 4B hoàn thành: Baseline scorecard đã được tạo")
+    print("="*70)
