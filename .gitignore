@@ -10,3 +10,4 @@ venv/
 .venv/
 *.pyc
 day08/lab/.env
+.env

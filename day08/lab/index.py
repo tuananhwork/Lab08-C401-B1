@@ -366,10 +366,35 @@ def get_embedding(text: str) -> List[float]:
         model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
         return model.encode(text).tolist()
     """
-    raise NotImplementedError(
-        "TODO: Implement get_embedding().\n"
-        "Chọn Option A (OpenAI) hoặc Option B (Sentence Transformers) trong TODO comment."
-    )
+    cleaned = (text or "").strip()
+    if not cleaned:
+        raise ValueError("Không thể tạo embedding cho text rỗng.")
+
+    # Ưu tiên OpenAI nếu có API key để đồng nhất với stack online.
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if openai_api_key:
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(api_key=openai_api_key)
+            response = client.embeddings.create(
+                input=cleaned,
+                model="text-embedding-3-small",
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            print(f"[WARN] OpenAI embedding failed, fallback sang local model: {e}")
+
+    # Fallback local để vẫn chạy được khi không có API key.
+    try:
+        from sentence_transformers import SentenceTransformer
+    except ImportError as e:
+        raise RuntimeError(
+            "Thiếu package sentence-transformers. Cài bằng: pip install sentence-transformers"
+        ) from e
+
+    model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+    return model.encode(cleaned).tolist()
 
 
 def build_index(docs_dir: Path = DOCS_DIR, db_dir: Path = CHROMA_DB_DIR) -> None:
@@ -554,6 +579,15 @@ if __name__ == "__main__":
             print(f"  Text preview: {chunk['text'][:150]}...")
             chunk_tokens = tokenize_text(chunk['text'])
             print(f"  Token count: {len(chunk_tokens)}")
+
+        # Test nhanh task 1E: embed 1 chunk đầu tiên
+        if chunks:
+            try:
+                sample_embedding = get_embedding(chunks[0]["text"])
+                print(f"\n  Embedding dimension: {len(sample_embedding)}")
+                print(f"  Embedding preview: {sample_embedding[:5]}")
+            except Exception as e:
+                print(f"\n  [WARN] Không test được embedding: {e}")
 
     # Bước 3: Build index (yêu cầu implement get_embedding)
     print("\n--- Build Full Index ---")
