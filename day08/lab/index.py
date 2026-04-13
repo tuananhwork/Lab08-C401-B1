@@ -40,9 +40,62 @@ CHUNK_OVERLAP = 80     # tokens overlap giữa các chunk
 # Làm sạch text trước khi chunk và embed
 # =============================================================================
 
+def normalize_text(text: str) -> str:
+    """
+    Normalize text: chuẩn hóa khoảng trắng, dấu câu, ký tự đặc biệt.
+    
+    Args:
+        text: Text cần normalize
+        
+    Returns:
+        Text đã được chuẩn hóa
+    """
+    # Chuẩn hóa khoảng trắng: xóa khoảng trắng thừa ở đầu/cuối dòng
+    text = re.sub(r'^\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'\s+$', '', text, flags=re.MULTILINE)
+    
+    # Chuẩn hóa khoảng trắng giữa các từ: nhiều space → 1 space
+    text = re.sub(r'[ \t]+', ' ', text)
+    
+    # Chuẩn hóa số dòng trống liên tiếp: max 2 dòng trống
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    # Xóa ký tự đặc biệt không cần thiết (giữ lại chữ cái, số, dấu câu tiếng Việt)
+    # Giữ lại: a-z, A-Z, 0-9, chữ tiếng Việt có dấu, dấu câu cơ bản
+    text = re.sub(r'[^\w\s\.\,\:\;\!\?\-\(\)\[\]\/\%\€\$₫\n]', '', text)
+    
+    return text.strip()
+
+
+def tokenize_text(text: str) -> List[str]:
+    """
+    Tokenize text thành danh sách các token (words).
+    Hỗ trợ tiếng Việt: tách theo khoảng trắng nhưng giữ nguyên từ ghép có dấu.
+    
+    Args:
+        text: Text cần tokenize
+        
+    Returns:
+        List các tokens
+    """
+    # Lowercase để normalize
+    text_lower = text.lower()
+    
+    # Tách theo whitespace và lọc tokens rỗng
+    tokens = text_lower.split()
+    
+    # Xóa punctuation ở đầu/cuối mỗi token
+    tokens = [token.strip('.,;:!?"\'()[]{}') for token in tokens]
+    
+    # Lọc tokens rỗng sau khi strip
+    tokens = [token for token in tokens if token]
+    
+    return tokens
+
+
 def preprocess_document(raw_text: str, filepath: str) -> Dict[str, Any]:
     """
-    Preprocess một tài liệu: extract metadata từ header và làm sạch nội dung.
+    Preprocess một tài liệu: extract metadata từ header, làm sạch và tokenize nội dung.
 
     Args:
         raw_text: Toàn bộ nội dung file text
@@ -52,13 +105,13 @@ def preprocess_document(raw_text: str, filepath: str) -> Dict[str, Any]:
         Dict chứa:
           - "text": nội dung đã clean
           - "metadata": dict với source, department, effective_date, access
+          - "tokens": danh sách tokens (cho debugging/analysis)
 
-    TODO Sprint 1:
+    Sprint 1 (Person 2 - Task 1B):
     - Extract metadata từ dòng đầu file (Source, Department, Effective Date, Access)
     - Bỏ các dòng header metadata khỏi nội dung chính
     - Normalize khoảng trắng, xóa ký tự rác
-
-    Gợi ý: dùng regex để parse dòng "Key: Value" ở đầu file.
+    - Tokenize text thành words
     """
     lines = raw_text.strip().split("\n")
     metadata = {
@@ -73,8 +126,7 @@ def preprocess_document(raw_text: str, filepath: str) -> Dict[str, Any]:
 
     for line in lines:
         if not header_done:
-            # TODO: Parse metadata từ các dòng "Key: Value"
-            # Ví dụ: "Source: policy/refund-v4.pdf" → metadata["source"] = "policy/refund-v4.pdf"
+            # Parse metadata từ các dòng "Key: Value"
             if line.startswith("Source:"):
                 metadata["source"] = line.replace("Source:", "").strip()
             elif line.startswith("Department:"):
@@ -87,21 +139,25 @@ def preprocess_document(raw_text: str, filepath: str) -> Dict[str, Any]:
                 # Gặp section heading đầu tiên → kết thúc header
                 header_done = True
                 content_lines.append(line)
-            elif line.strip() == "" or line.isupper():
+            elif line.strip() == "" or (line.isupper() and len(line) > 3):
                 # Dòng tên tài liệu (toàn chữ hoa) hoặc dòng trống
                 continue
         else:
             content_lines.append(line)
 
+    # Join và clean text
     cleaned_text = "\n".join(content_lines)
+    
+    # Normalize text
+    cleaned_text = normalize_text(cleaned_text)
 
-    # TODO: Thêm bước normalize text nếu cần
-    # Gợi ý: bỏ ký tự đặc biệt thừa, chuẩn hóa dấu câu
-    cleaned_text = re.sub(r"\n{3,}", "\n\n", cleaned_text)  # max 2 dòng trống liên tiếp
+    # Tokenize cho mục đích analysis
+    tokens = tokenize_text(cleaned_text)
 
     return {
         "text": cleaned_text,
         "metadata": metadata,
+        "tokens": tokens,
     }
 
 
@@ -405,18 +461,30 @@ if __name__ == "__main__":
     for f in doc_files:
         print(f"  - {f.name}")
 
-    # Bước 2: Test preprocess và chunking (không cần API key)
-    print("\n--- Test preprocess + chunking ---")
-    for filepath in doc_files[:1]:  # Test với 1 file đầu
-        raw = filepath.read_text(encoding="utf-8")
-        doc = preprocess_document(raw, str(filepath))
+    # Bước 2: Test preprocess và chunking với 1 document (Task 1B)
+    print("\n--- Test preprocess + chunking (Task 1B) ---")
+    test_file = doc_files[0] if doc_files else None
+    
+    if test_file:
+        raw = test_file.read_text(encoding="utf-8")
+        doc = preprocess_document(raw, str(test_file))
         chunks = chunk_document(doc)
-        print(f"\nFile: {filepath.name}")
-        print(f"  Metadata: {doc['metadata']}")
+        
+        print(f"\nFile: {test_file.name}")
+        print(f"  Metadata:")
+        print(f"    - Source: {doc['metadata']['source']}")
+        print(f"    - Department: {doc['metadata']['department']}")
+        print(f"    - Effective Date: {doc['metadata']['effective_date']}")
+        print(f"    - Access: {doc['metadata']['access']}")
+        print(f"  Token count: {len(doc['tokens'])}")
+        print(f"  Sample tokens (first 20): {doc['tokens'][:20]}")
         print(f"  Số chunks: {len(chunks)}")
+        
         for i, chunk in enumerate(chunks[:3]):
             print(f"\n  [Chunk {i+1}] Section: {chunk['metadata']['section']}")
-            print(f"  Text: {chunk['text'][:150]}...")
+            print(f"  Text preview: {chunk['text'][:150]}...")
+            chunk_tokens = tokenize_text(chunk['text'])
+            print(f"  Token count: {len(chunk_tokens)}")
 
     # Bước 3: Build index (yêu cầu implement get_embedding)
     print("\n--- Build Full Index ---")
