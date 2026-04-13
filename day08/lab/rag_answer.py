@@ -76,7 +76,7 @@ def retrieve_dense(
 
     try:
         # Khởi tạo ChromaDB client
-        client = chromadb.PersistentClient(path=str(os.getenv("CHROMA_DB_DIR", "chroma_db")))
+        client = chromadb.PersistentClient(path=str(CHROMA_DB_DIR))
         collection = client.get_collection("rag_lab")
 
         # Embed query
@@ -537,6 +537,18 @@ def rag_answer(
     if verbose:
         print(f"[RAG] After select: {len(candidates)} chunks")
 
+    # Sprint 2 integration guard:
+    # Nếu retrieval không trả về context thì abstain ngay, không gọi LLM.
+    if not candidates:
+        abstain_message = "Toi khong tim thay thong tin nay trong tai lieu noi bo."
+        return {
+            "query": query,
+            "answer": abstain_message,
+            "sources": [],
+            "chunks_used": [],
+            "config": config,
+        }
+
     # --- Bước 3: Build context và prompt ---
     context_block = format_context(candidates, include_scores=True, include_metadata=True)
     prompt = build_grounded_prompt(query, context_block)
@@ -710,6 +722,42 @@ def test_retrieve_dense(verbose: bool = True) -> None:
 
 
 # =============================================================================
+# SPRINT 2: TEST RAG ANSWER INTEGRATION (Person 5 Task 2E)
+# =============================================================================
+
+def test_rag_answer_integration(verbose: bool = True) -> None:
+    """
+    Test end-to-end rag_answer() theo đúng Task 2E (Person 5):
+    integrate retrieval + context formatting + prompt + LLM call.
+
+    Yêu cầu:
+    - Chạy 3+ queries
+    - Kiểm tra output có answer và sources
+    """
+    print("\n" + "="*70)
+    print("SPRINT 2 — Task 2E: Test rag_answer() integration")
+    print("="*70)
+
+    test_queries = [
+        "SLA xử lý ticket P1 là bao lâu?",
+        "Khách hàng có thể yêu cầu hoàn tiền trong bao nhiêu ngày?",
+        "Ai phải phê duyệt để cấp quyền Level 3?",
+        "ERR-403-AUTH là lỗi gì?",
+    ]
+
+    for idx, query in enumerate(test_queries, 1):
+        print(f"\n[Integration Query {idx}] {query}")
+        print("-" * 70)
+        try:
+            result = rag_answer(query, retrieval_mode="dense", verbose=False)
+            print(f"Answer: {result.get('answer', '')}")
+            print(f"Sources: {result.get('sources', [])}")
+            print(f"Chunks used: {len(result.get('chunks_used', []))}")
+        except Exception as e:
+            print(f"❌ Integration failed: {str(e)[:200]}")
+
+
+# =============================================================================
 # SPRINT 3: SO SÁNH BASELINE VS VARIANT
 # =============================================================================
 
@@ -755,6 +803,9 @@ if __name__ == "__main__":
 
     # Sprint 2 Task 2A: Test retrieve_dense()
     test_retrieve_dense(verbose=True)
+
+    # Sprint 2 Task 2E: End-to-end integration test
+    test_rag_answer_integration(verbose=True)
 
     print("\n" + "="*70)
     print("NEXT STEPS:")
