@@ -605,3 +605,42 @@ if __name__ == "__main__":
     print("\n" + "="*70)
     print("✓ Task 4B hoàn thành: Baseline scorecard đã được tạo")
     print("="*70)
+
+    # --- Chạy Variant ---
+    print("\n" + "="*70)
+    print("CHẠY VARIANT SCORECARD (Task 4C)")
+    print("="*70)
+    
+    variant_results = run_scorecard(
+        config=VARIANT_CONFIG,
+        test_questions=test_questions,
+        verbose=True,
+    )
+
+    # Save scorecard variant
+    variant_md = generate_scorecard_summary(variant_results, VARIANT_CONFIG.get("label", "variant"))
+    variant_scorecard_path = RESULTS_DIR / "scorecard_variant.md"
+    variant_scorecard_path.write_text(variant_md, encoding="utf-8")
+    print(f"\n✓ Scorecard variant lưu tại: {variant_scorecard_path}")
+
+    print("\n" + "="*70)
+    print("✓ Task 4C hoàn thành: Variant scorecard đã được tạo")
+    print("="*70)
+
+    # --- A/B Comparison ---
+    print("\n" + "="*70)
+    print("A/B COMPARISON (Task 4D)")
+    print("="*70)
+    
+    compare_ab(
+        baseline_results,
+        variant_results,
+        output_csv="grading_run.json"
+    )
+
+    print("\n" + "="*70)
+    print("✓ Sprint 4 Evaluation hoàn thành!")
+    print(f"  - Baseline scorecard: {scorecard_path}")
+    print(f"  - Variant scorecard: {variant_scorecard_path}")
+    print(f"  - Raw results CSV: {RESULTS_DIR / 'grading_run.json'}")
+    print("="*70)
