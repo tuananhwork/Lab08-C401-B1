@@ -93,6 +93,20 @@ def tokenize_text(text: str) -> List[str]:
     return tokens
 
 
+def _infer_doc_type(source: str) -> str:
+    """Infer doc_type từ source path (Task 1D — Person 4)."""
+    s = source.lower()
+    if "sop" in s:
+        return "sop"
+    if "faq" in s:
+        return "faq"
+    if "sla" in s:
+        return "sla"
+    if "policy" in s or "leave" in s or "refund" in s:
+        return "policy"
+    return "document"
+
+
 def preprocess_document(raw_text: str, filepath: str) -> Dict[str, Any]:
     """
     Preprocess một tài liệu: extract metadata từ header, làm sạch và tokenize nội dung.
@@ -120,6 +134,7 @@ def preprocess_document(raw_text: str, filepath: str) -> Dict[str, Any]:
         "department": "unknown",
         "effective_date": "unknown",
         "access": "internal",
+        "doc_type": "document",   # Task 1D: infer sau khi parse source
     }
     content_lines = []
     header_done = False
@@ -147,6 +162,9 @@ def preprocess_document(raw_text: str, filepath: str) -> Dict[str, Any]:
 
     # Join và clean text
     cleaned_text = "\n".join(content_lines)
+
+    # Task 1D: gán doc_type sau khi source đã được parse từ header
+    metadata["doc_type"] = _infer_doc_type(metadata["source"])
     
     # Normalize text
     cleaned_text = normalize_text(cleaned_text)
