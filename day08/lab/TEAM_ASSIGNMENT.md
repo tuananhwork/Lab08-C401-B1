@@ -9,6 +9,17 @@
 
 ---
 
+## Group infomation
+
+| Person   | Full name          |
+| -------- | ------------------ |
+| Person 1 | Chu Thị Ngọc Huyền |
+| Person 2 | Chu Bá Tuấn Anh    |
+| Person 3 | Nguyễn Mai Phương  |
+| Person 4 | Hứa Quang Linh     |
+| Person 5 | Nguyễn Thị Tuyết   |
+| Person 6 | Nguyễn Văn Lĩnh    |
+
 ## 📊 Phân công công việc (Stream 1–6)
 
 Mỗi sprint có **6 công việc song song**, mỗi người nhận 1 công việc/sprint. Công việc xoay vòng qua các sprint để tất cả có kinh nghiệm mọi phần của pipeline.
