@@ -1,0 +1,256 @@
+{
+  "run_id": "lab08_ab_20260413",
+  "generated_at": "2026-04-13T16:35:00",
+  "author": "Person 4 — Task 4D",
+
+  "baseline_config": {
+    "label": "baseline_dense",
+    "retrieval_mode": "dense",
+    "top_k_search": 10,
+    "top_k_select": 3,
+    "use_rerank": false,
+    "prompt_version": "v1",
+    "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
+    "llm_model": "gpt-4o-mini"
+  },
+
+  "variant_config": {
+    "label": "variant_hybrid_rerank",
+    "retrieval_mode": "hybrid",
+    "top_k_search": 10,
+    "top_k_select": 3,
+    "use_rerank": true,
+    "prompt_version": "v2",
+    "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
+    "llm_model": "gpt-4o-mini",
+    "notes": "dense_weight=0.6 sparse_weight=0.4 RRF k=60 | CrossEncoder ms-marco-MiniLM-L-6-v2 | query_expansion=true"
+  },
+
+  "per_question": [
+    {
+      "id": "q01", "category": "SLA",
+      "question": "SLA xu ly ticket P1 la bao lau?",
+      "expected_abstain": false,
+      "baseline": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      },
+      "variant": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      }
+    },
+    {
+      "id": "q02", "category": "Refund",
+      "question": "Khach hang co the yeu cau hoan tien trong bao nhieu ngay?",
+      "expected_abstain": false,
+      "baseline": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      },
+      "variant": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      }
+    },
+    {
+      "id": "q03", "category": "Access Control",
+      "question": "Ai phai phe duyet de cap quyen Level 3?",
+      "expected_abstain": false,
+      "baseline": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      },
+      "variant": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      }
+    },
+    {
+      "id": "q04", "category": "Refund",
+      "question": "San pham ky thuat so co duoc hoan tien khong?",
+      "expected_abstain": false,
+      "baseline": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      },
+      "variant": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      }
+    },
+    {
+      "id": "q05", "category": "IT Helpdesk",
+      "question": "Tai khoan bi khoa sau bao nhieu lan dang nhap sai?",
+      "expected_abstain": false,
+      "baseline": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      },
+      "variant": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      }
+    },
+    {
+      "id": "q06", "category": "SLA",
+      "question": "Escalation trong su co P1 dien ra nhu the nao?",
+      "expected_abstain": false,
+      "baseline": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 2, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      },
+      "variant": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 2, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      }
+    },
+    {
+      "id": "q07", "category": "Access Control",
+      "question": "Approval Matrix de cap quyen he thong la tai lieu nao?",
+      "expected_abstain": false,
+      "note": "Hard: alias query — dense thuong miss ten cu",
+      "baseline": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 2,
+        "notes": "No chunks used - answer not grounded"
+      },
+      "variant": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 2,
+        "notes": "No chunks used - answer not grounded"
+      }
+    },
+    {
+      "id": "q08", "category": "HR Policy",
+      "question": "Nhan vien duoc lam remote toi da may ngay moi tuan?",
+      "expected_abstain": false,
+      "baseline": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      },
+      "variant": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      }
+    },
+    {
+      "id": "q09", "category": "Insufficient Context",
+      "question": "ERR-403-AUTH la loi gi va cach xu ly?",
+      "expected_abstain": true,
+      "note": "Expected abstain — cau hoi khong co answer trong docs",
+      "baseline": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": null, "completeness": 1,
+        "abstain_correct": true,
+        "notes": "Abstain correct — but triggered by retrieval failure, not by model reasoning"
+      },
+      "variant": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": null, "completeness": 1,
+        "abstain_correct": true,
+        "notes": "Abstain correct — but triggered by retrieval failure, not by model reasoning"
+      }
+    },
+    {
+      "id": "q10", "category": "Refund",
+      "question": "Neu can hoan tien khan cap cho khach hang VIP, quy trinh co khac khong?",
+      "expected_abstain": false,
+      "baseline": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      },
+      "variant": {
+        "answer": "Toi khong tim thay thong tin nay trong tai lieu noi bo.",
+        "sources": [], "chunks_retrieved": 0,
+        "faithfulness": 1, "relevance": 1, "context_recall": 0, "completeness": 1,
+        "notes": "No chunks used - answer not grounded"
+      }
+    }
+  ],
+
+  "aggregated_metrics": {
+    "baseline": {
+      "faithfulness_avg":    1.00,
+      "relevance_avg":       1.10,
+      "context_recall_avg":  0.00,
+      "completeness_avg":    1.10,
+      "abstain_accuracy":    1.0,
+      "chunks_retrieved_avg": 0.0
+    },
+    "variant": {
+      "faithfulness_avg":    1.00,
+      "relevance_avg":       1.10,
+      "context_recall_avg":  0.00,
+      "completeness_avg":    1.10,
+      "abstain_accuracy":    1.0,
+      "chunks_retrieved_avg": 0.0
+    }
+  },
+
+  "delta_analysis": {
+    "summary": "Both configs produced identical results. All 10 questions returned ABSTAIN with 0 chunks retrieved. The retrieval layer failed before retrieval_mode or rerank could have any effect — making A/B comparison inconclusive.",
+
+    "deltas": {
+      "faithfulness":    { "baseline": 1.00, "variant": 1.00, "delta": 0.00, "pct_change": "0%" },
+      "relevance":       { "baseline": 1.10, "variant": 1.10, "delta": 0.00, "pct_change": "0%" },
+      "context_recall":  { "baseline": 0.00, "variant": 0.00, "delta": 0.00, "pct_change": "0%" },
+      "completeness":    { "baseline": 1.10, "variant": 1.10, "delta": 0.00, "pct_change": "0%" }
+    },
+
+    "root_cause": "get_embedding() raised NotImplementedError during the evaluation run, causing retrieve_dense() to return 0 chunks for every query. Since retrieval produced no results, the prompt contained empty context — triggering the ABSTAIN response for all questions regardless of config.",
+
+    "what_worked": [
+      "q09 (expected_abstain=true): pipeline correctly abstained — output matches expected behavior, though for the wrong reason (retrieval failure vs. reasoned abstain).",
+      "No hallucinations produced — ABSTAIN is the safe fallback, which is preferable to fabricated answers."
+    ],
+
+    "what_failed": [
+      "q01–q08, q10 (expected_abstain=false): pipeline could not retrieve any chunks → answered ABSTAIN instead of grounded answers.",
+      "q07 (alias query 'Approval Matrix'): hybrid retrieval + query expansion would have helped, but retrieval never ran.",
+      "Context Recall = 0 for all answerable questions — retrieval pipeline completely non-functional during this run."
+    ],
+
+    "cannot_conclude": [
+      "Cannot compare dense vs hybrid — both returned 0 chunks.",
+      "Cannot compare prompt_v1 vs prompt_v2 — LLM never received real context.",
+      "Cannot assess rerank impact — no candidates to rerank."
+    ],
+
+    "recommendation": "Fix get_embedding() first (ensure sentence-transformers model loads or OpenAI key is valid), rebuild ChromaDB index, then re-run eval to get meaningful A/B comparison. Expected improvement with hybrid+rerank+prompt_v2: Context Recall +30-40%, Citation Accuracy +15% based on tuning-log projections."
+  }
+}
