@@ -352,25 +352,31 @@ def build_context_block(chunks: List[Dict[str, Any]]) -> str:
     return format_context(chunks, include_scores=True, include_metadata=True)
 
 
+# System prompt v1 — Task 2D (Person 4)
+# Thay đổi ở Sprint 3 Task 3D sẽ tạo SYSTEM_PROMPT_V2 riêng, không sửa biến này.
+SYSTEM_PROMPT_V1 = """You are a helpful enterprise internal assistant.
+Answer employee questions using ONLY the retrieved documents listed in the context.
+
+Rules:
+1. EVIDENCE ONLY: Use only information explicitly stated in the context. Do not add external knowledge or make assumptions.
+2. CITATION (mandatory): After every factual claim, cite the source number in brackets, e.g. [1] or [1][2]. Never make a claim without a citation.
+3. ABSTAIN: If the context does not contain enough information, respond exactly: "Toi khong tim thay thong tin nay trong tai lieu noi bo."
+4. LANGUAGE: Reply in the same language as the question (Vietnamese question → Vietnamese answer).
+5. CONCISE: 1–5 sentences max, or a short bullet list when listing multiple items."""
+
+
 def build_grounded_prompt(query: str, context_block: str) -> str:
     """
-    Xây dựng grounded prompt theo 4 quy tắc từ slide:
-    1. Evidence-only: Chỉ trả lời từ retrieved context
-    2. Abstain: Thiếu context thì nói không đủ dữ liệu
-    3. Citation: Gắn source/section khi có thể
-    4. Short, clear, stable: Output ngắn, rõ, nhất quán
+    Xay dung grounded prompt v1 (Task 2D — Person 4).
 
-    TODO Sprint 2:
-    Đây là prompt baseline. Trong Sprint 3, bạn có thể:
-    - Thêm hướng dẫn về format output (JSON, bullet points)
-    - Thêm ngôn ngữ phản hồi (tiếng Việt vs tiếng Anh)
-    - Điều chỉnh tone phù hợp với use case (CS helpdesk, IT support)
+    Nhu cau:
+    - Tra loi tu context, cite sources, abstain neu khong biet
+    - Tuong thich voi call_llm(prompt: str) cua Person 3
+
+    Sprint 3: tao build_grounded_prompt_v2() rieng de A/B test,
+    khong sua ham nay.
     """
-    prompt = f"""Answer only from the retrieved context below.
-If the context is insufficient to answer the question, say you do not know and do not make up information.
-Cite the source field (in brackets like [1]) when possible.
-Keep your answer short, clear, and factual.
-Respond in the same language as the question.
+    return f"""{SYSTEM_PROMPT_V1}
 
 Question: {query}
 
@@ -378,7 +384,6 @@ Context:
 {context_block}
 
 Answer:"""
-    return prompt
 
 
 def call_llm(prompt: str) -> str:
