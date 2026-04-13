@@ -1,7 +1,7 @@
 # 📄 DOCUMENT ANALYSIS — Sprint 1 Task 1A
 
 **Task:** Load + analyze documents (5 files). Mô tả structure từng document.  
-**Person:** Person 1  
+**Person:** Chu Thị Ngọc huyền
 **Sprint:** 1  
 **Date:** 2026-04-13
 
