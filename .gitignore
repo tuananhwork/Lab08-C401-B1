@@ -11,3 +11,5 @@ venv/
 *.pyc
 day08/lab/.env
 .env
+day09/lab/data/grading_questions.json
+day10/lab/data/grading_questions.json

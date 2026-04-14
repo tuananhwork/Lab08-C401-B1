@@ -2,14 +2,14 @@
 
 **Tên nhóm:** B1-C401  
 **Thành viên:**
-| Tên | Vai trò | Email |
-|-----|---------|-------|
-| Chu Thị Ngọc Huyền | Retrieval Owner | **_ |
-| Chu Bá Tuấn Anh | Eval Owner | _** |
-| Nguyễn Mai Phương | Documentation Owner | **_ |
-| Hứa Quang Linh | Tech Lead | _** |
-| Nguyễn Thị Tuyết | Documentation Owner | **_ |
-| Nguyễn Văn Lĩnh | Documentation Owner | _** |
+| Tên                | Vai trò             | Email |
+| ------------------ | ------------------- | ----- |
+| Chu Thị Ngọc Huyền | Retrieval Owner     | **_   |
+| Chu Bá Tuấn Anh    | Eval Owner          | _**   |
+| Nguyễn Mai Phương  | Documentation Owner | **_   |
+| Hứa Quang Linh     | Tech Lead           | _**   |
+| Nguyễn Thị Tuyết   | Documentation Owner | **_   |
+| Nguyễn Văn Lĩnh    | Documentation Owner | _**   |
 
 **Ngày nộp:** 2026-04-13  
 **Repo:** Lecture-Day-08-09-10  
