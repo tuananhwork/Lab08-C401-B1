@@ -175,6 +175,9 @@ def supervisor_node(state: AgentState) -> AgentState:
     if risk_high and "risk_high" not in route_reason:
         route_reason += " | risk_high=True"
 
+    mcp_decision = "use_mcp_tools" if needs_tool else "no_mcp_needed"
+    route_reason = f"{route_reason} | mcp_decision={mcp_decision}"
+
     state["supervisor_route"] = route
     state["route_reason"] = route_reason
     state["needs_tool"] = needs_tool

@@ -85,6 +85,21 @@ def _call_mcp_tool(tool_name: str, tool_input: dict) -> dict:
         }
 
 
+def _record_mcp_trace(state: dict, mcp_call: dict) -> None:
+    """
+    Ghi trace theo đúng yêu cầu Sprint 3:
+    - mcp_tool_called
+    - mcp_result
+    """
+    state.setdefault("mcp_trace", [])
+    state["mcp_trace"].append({
+        "mcp_tool_called": mcp_call.get("tool"),
+        "mcp_result": mcp_call.get("output"),
+        "error": mcp_call.get("error"),
+        "timestamp": mcp_call.get("timestamp"),
+    })
+
+
 # ─────────────────────────────────────────────
 # Policy Analysis Logic
 # ─────────────────────────────────────────────
@@ -257,6 +272,7 @@ def run(state: dict) -> dict:
         if not chunks and needs_tool:
             mcp_result = _call_mcp_tool("search_kb", {"query": task, "top_k": 3})
             state["mcp_tools_used"].append(mcp_result)
+            _record_mcp_trace(state, mcp_result)
             state["history"].append(f"[{WORKER_NAME}] called MCP search_kb")
 
             if mcp_result.get("output") and mcp_result["output"].get("chunks"):
@@ -271,6 +287,7 @@ def run(state: dict) -> dict:
         if needs_tool and any(kw in task.lower() for kw in ["ticket", "p1", "jira"]):
             mcp_result = _call_mcp_tool("get_ticket_info", {"ticket_id": "P1-LATEST"})
             state["mcp_tools_used"].append(mcp_result)
+            _record_mcp_trace(state, mcp_result)
             state["history"].append(f"[{WORKER_NAME}] called MCP get_ticket_info")
 
         worker_io["output"] = {
