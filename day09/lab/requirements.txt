@@ -5,11 +5,14 @@
 python-dotenv>=1.0.0
 
 # ─── Vector Store ───────────────────────
-chromadb>=0.4.22
+# chromadb already installed from day08 venv (1.5.7)
+# Reinstalling triggers onnxruntime dep which has no Python 3.14 wheel
+# chromadb==1.5.7
 
 # ─── Embeddings ─────────────────────────
-# Option A: Sentence Transformers (offline, không cần API key)
-sentence-transformers>=2.6.0
+# sentence-transformers requires torch which has no Python 3.14 wheel
+# Use OpenAI embeddings instead (EMBEDDING_PROVIDER=openai in .env)
+# sentence-transformers>=2.6.0
 
 # ─── LLM ────────────────────────────────
 # Option A: OpenAI
