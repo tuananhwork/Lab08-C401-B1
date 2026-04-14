@@ -17,6 +17,10 @@ Gọi độc lập để test:
 
 import os
 import sys
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ─────────────────────────────────────────────
 # Worker Contract (xem contracts/worker_contracts.yaml)
@@ -65,19 +69,23 @@ def _get_embedding_fn():
 def _get_collection():
     """
     Kết nối ChromaDB collection.
-    TODO Sprint 2: Đảm bảo collection đã được build từ Step 3 trong README.
+    Đọc cấu hình từ .env: CHROMA_DB_PATH, CHROMA_COLLECTION
     """
     import chromadb
-    client = chromadb.PersistentClient(path="./chroma_db")
+
+    db_path = os.getenv("CHROMA_DB_PATH", "./chroma_db")
+    collection_name = os.getenv("CHROMA_COLLECTION", "day09_docs")
+
+    client = chromadb.PersistentClient(path=db_path)
     try:
-        collection = client.get_collection("day09_docs")
+        collection = client.get_collection(collection_name)
     except Exception:
         # Auto-create nếu chưa có
         collection = client.get_or_create_collection(
-            "day09_docs",
+            collection_name,
             metadata={"hnsw:space": "cosine"}
         )
-        print(f"⚠️  Collection 'day09_docs' chưa có data. Chạy index script trong README trước.")
+        print(f"⚠️  Collection '{collection_name}' chưa có data. Chạy index script trước.")
     return collection
 
 
@@ -85,15 +93,9 @@ def retrieve_dense(query: str, top_k: int = DEFAULT_TOP_K) -> list:
     """
     Dense retrieval: embed query → query ChromaDB → trả về top_k chunks.
 
-    TODO Sprint 2: Implement phần này.
-    - Dùng _get_embedding_fn() để embed query
-    - Query collection với n_results=top_k
-    - Format result thành list of dict
-
     Returns:
         list of {"text": str, "source": str, "score": float, "metadata": dict}
     """
-    # TODO: Implement dense retrieval
     embed = _get_embedding_fn()
     query_embedding = embed(query)
 
