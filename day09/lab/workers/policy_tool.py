@@ -16,11 +16,38 @@ Gọi độc lập để test:
     python workers/policy_tool.py
 """
 
+import json
 import os
 import sys
 from typing import Optional
 
 WORKER_NAME = "policy_tool_worker"
+
+# System prompt (stable → cached across calls)
+_POLICY_SYSTEM_PROMPT = """Bạn là chuyên gia phân tích chính sách hoàn tiền nội bộ.
+
+Nhiệm vụ: Dựa vào context tài liệu được cung cấp, xác định chính sách áp dụng và các ngoại lệ.
+
+Các ngoại lệ cần kiểm tra:
+- Flash Sale: Đơn hàng Flash Sale không được hoàn tiền (Điều 3, chính sách v4)
+- Sản phẩm kỹ thuật số: license key, subscription không được hoàn tiền (Điều 3)
+- Sản phẩm đã kích hoạt: sản phẩm đã kích hoạt/đăng ký tài khoản không được hoàn tiền (Điều 3)
+- Đơn hàng cũ: Đơn hàng đặt trước 01/02/2026 áp dụng chính sách v3 (không có trong tài liệu hiện tại)
+
+Trả về JSON hợp lệ với đúng format sau (không có text thêm):
+{
+  "policy_applies": true,
+  "policy_name": "refund_policy_v4",
+  "exceptions_found": [
+    {"type": "exception_type", "rule": "mô tả rule", "source": "tên file nguồn"}
+  ],
+  "policy_version_note": ""
+}
+
+Quy tắc:
+- policy_applies = false nếu có ít nhất một exception ngăn hoàn tiền
+- policy_applies = true nếu không có exception nào
+- CHỈ trả về JSON, không có text khác ngoài JSON"""
 
 
 # ─────────────────────────────────────────────
@@ -62,28 +89,82 @@ def _call_mcp_tool(tool_name: str, tool_input: dict) -> dict:
 # Policy Analysis Logic
 # ─────────────────────────────────────────────
 
-def analyze_policy(task: str, chunks: list) -> dict:
+def _analyze_policy_with_llm(task: str, chunks: list) -> dict:
     """
-    Phân tích policy dựa trên context chunks.
-
-    TODO Sprint 2: Implement logic này với LLM call hoặc rule-based check.
-
-    Cần xử lý các exceptions:
-    - Flash Sale → không được hoàn tiền
-    - Digital product / license key / subscription → không được hoàn tiền
-    - Sản phẩm đã kích hoạt → không được hoàn tiền
-    - Đơn hàng trước 01/02/2026 → áp dụng policy v3 (không có trong docs)
-
-    Returns:
-        dict with: policy_applies, policy_name, exceptions_found, source, rule, explanation
+    Sprint 2: Phân tích policy dùng Claude API.
+    Dùng prompt caching trên system prompt ổn định.
+    Fallback về rule-based nếu LLM không khả dụng.
     """
+    import anthropic
+
+    context_parts = []
+    for c in chunks:
+        if c:
+            source = c.get("source", "unknown")
+            text = c.get("text", "")
+            score = c.get("score", 0)
+            context_parts.append(f"[Nguồn: {source} | relevance: {score:.2f}]\n{text}")
+
+    context_text = "\n\n".join(context_parts) if context_parts else "(Không có tài liệu tham khảo)"
+
+    client = anthropic.Anthropic()
+
+    response = client.messages.create(
+        model="claude-opus-4-6",
+        max_tokens=1024,
+        thinking={"type": "adaptive"},
+        system=[{
+            "type": "text",
+            "text": _POLICY_SYSTEM_PROMPT,
+            "cache_control": {"type": "ephemeral"},   # cache stable system prompt
+        }],
+        messages=[{
+            "role": "user",
+            "content": (
+                f"Câu hỏi / yêu cầu hỗ trợ:\n{task}\n\n"
+                f"Tài liệu tham khảo:\n{context_text}\n\n"
+                "Phân tích và trả về JSON."
+            ),
+        }],
+    )
+
+    # Extract the text block (thinking blocks come first, skip them)
+    text_content = next(
+        (b.text for b in response.content if b.type == "text"),
+        None,
+    )
+    if not text_content:
+        raise ValueError("LLM returned no text content")
+
+    # Strip markdown code fences if present
+    cleaned = text_content.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("```", 2)[-1] if cleaned.count("```") >= 2 else cleaned
+        cleaned = cleaned.lstrip("json").strip()
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3].strip()
+
+    result = json.loads(cleaned)
+
+    # Normalise to expected schema
+    result.setdefault("policy_applies", True)
+    result.setdefault("policy_name", "refund_policy_v4")
+    result.setdefault("exceptions_found", [])
+    result.setdefault("policy_version_note", "")
+
+    sources = list({c.get("source", "unknown") for c in chunks if c})
+    result["source"] = sources
+    result["explanation"] = "Analyzed via Claude LLM (claude-opus-4-6) with adaptive thinking."
+    return result
+
+
+def _analyze_policy_rule_based(task: str, chunks: list) -> dict:
+    """Fallback: rule-based exception detection."""
     task_lower = task.lower()
     context_text = " ".join([c.get("text", "") for c in chunks]).lower()
 
-    # --- Rule-based exception detection ---
     exceptions_found = []
 
-    # Exception 1: Flash Sale
     if "flash sale" in task_lower or "flash sale" in context_text:
         exceptions_found.append({
             "type": "flash_sale_exception",
@@ -91,7 +172,6 @@ def analyze_policy(task: str, chunks: list) -> dict:
             "source": "policy_refund_v4.txt",
         })
 
-    # Exception 2: Digital product
     if any(kw in task_lower for kw in ["license key", "license", "subscription", "kỹ thuật số"]):
         exceptions_found.append({
             "type": "digital_product_exception",
@@ -99,7 +179,6 @@ def analyze_policy(task: str, chunks: list) -> dict:
             "source": "policy_refund_v4.txt",
         })
 
-    # Exception 3: Activated product
     if any(kw in task_lower for kw in ["đã kích hoạt", "đã đăng ký", "đã sử dụng"]):
         exceptions_found.append({
             "type": "activated_exception",
@@ -107,39 +186,35 @@ def analyze_policy(task: str, chunks: list) -> dict:
             "source": "policy_refund_v4.txt",
         })
 
-    # Determine policy_applies
-    policy_applies = len(exceptions_found) == 0
-
-    # Determine which policy version applies (temporal scoping)
-    # TODO: Check nếu đơn hàng trước 01/02/2026 → v3 applies (không có docs, nên flag cho synthesis)
-    policy_name = "refund_policy_v4"
     policy_version_note = ""
-    if "31/01" in task_lower or "30/01" in task_lower or "trước 01/02" in task_lower:
+    if any(kw in task_lower for kw in ["31/01", "30/01", "trước 01/02"]):
         policy_version_note = "Đơn hàng đặt trước 01/02/2026 áp dụng chính sách v3 (không có trong tài liệu hiện tại)."
-
-    # TODO Sprint 2: Gọi LLM để phân tích phức tạp hơn
-    # Ví dụ:
-    # from openai import OpenAI
-    # client = OpenAI()
-    # response = client.chat.completions.create(
-    #     model="gpt-4o-mini",
-    #     messages=[
-    #         {"role": "system", "content": "Bạn là policy analyst. Dựa vào context, xác định policy áp dụng và các exceptions."},
-    #         {"role": "user", "content": f"Task: {task}\n\nContext:\n" + "\n".join([c['text'] for c in chunks])}
-    #     ]
-    # )
-    # analysis = response.choices[0].message.content
 
     sources = list({c.get("source", "unknown") for c in chunks if c})
 
     return {
-        "policy_applies": policy_applies,
-        "policy_name": policy_name,
+        "policy_applies": len(exceptions_found) == 0,
+        "policy_name": "refund_policy_v4",
         "exceptions_found": exceptions_found,
         "source": sources,
         "policy_version_note": policy_version_note,
-        "explanation": "Analyzed via rule-based policy check. TODO: upgrade to LLM-based analysis.",
+        "explanation": "Analyzed via rule-based policy check (fallback).",
     }
+
+
+def analyze_policy(task: str, chunks: list) -> dict:
+    """
+    Sprint 2: Phân tích policy dùng Claude LLM, fallback về rule-based nếu lỗi.
+
+    Returns:
+        dict with: policy_applies, policy_name, exceptions_found, source,
+                   policy_version_note, explanation
+    """
+    try:
+        return _analyze_policy_with_llm(task, chunks)
+    except Exception as e:
+        print(f"⚠️  LLM policy analysis failed ({e}), falling back to rule-based.")
+        return _analyze_policy_rule_based(task, chunks)
 
 
 # ─────────────────────────────────────────────
