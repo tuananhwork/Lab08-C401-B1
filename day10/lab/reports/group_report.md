@@ -43,11 +43,20 @@ _________________
 
 | Rule / Expectation mới (tên ngắn) | Trước (số liệu) | Sau / khi inject (số liệu) | Chứng cứ (log / CSV / commit) |
 |-----------------------------------|------------------|-----------------------------|-------------------------------|
-| … | … | … | … |
+| P2-Rule1: BOM/control_char → quarantine | 0 rows detected | 2 rows quarantined (row 11: BOM `\ufeff`, row 14: control chars `\x01\x02`) | `artifacts/quarantine/quarantine_test-p2-rules-v2.csv`, log: `rule1_bom_control_quarantine=2` |
+| P2-Rule2: Whitespace collapse + min length 20 | 0 rows affected | 1 row collapsed (row 12), 1 row quarantined for short text (row 13: 9 chars) | `artifacts/quarantine/quarantine_test-p2-rules-v2.csv`, log: `rule2_whitespace_collapsed=1, rule2_short_text_quarantine=1` |
+| P3-Rule3: Validate exported_at future date | TBD | TBD | TBD |
+| P4-Expect1: effective_date_in_valid_range | TBD | TBD | TBD |
+| P4-Expect2: doc_id_distribution_balanced | TBD | TBD | TBD |
 
 **Rule chính (baseline + mở rộng):**
 
-- …
+- **Baseline**: allowlist doc_id, normalize effective_date, HR stale < 2026, deduplicate chunk_text, refund 14→7 days
+- **P2新增**: 
+  - Rule 1: Phát hiện BOM (`\ufeff`) hoặc control characters (ASCII 0-31, 127) → quarantine để tránh embed dữ liệu lỗi encoding
+  - Rule 2: Collapse whitespace thừa (nhiều space/tab → 1 space), quarantine nếu chunk < 20 ký tự sau chuẩn hóa (chất lượng retrieval thấp)
+- **P3新增**: Validate exported_at ISO format, quarantine nếu date trong tương lai
+- **P4新增**: (see expectations.py)
 
 **Ví dụ 1 lần expectation fail (nếu có) và cách xử lý:**
 
