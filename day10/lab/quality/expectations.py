@@ -112,5 +112,37 @@ def run_expectations(cleaned_rows: List[Dict[str, Any]]) -> Tuple[List[Expectati
         )
     )
 
+    # E7: effective_date_in_valid_range — tất cả dòng cleaned có effective_date trong khoảng 2024–2027
+    # Phát hiện data corruption (ngày tương lai hoặc quá xa)
+    out_of_range = [
+        r
+        for r in cleaned_rows
+        if not ("2024-01-01" <= (r.get("effective_date") or "").strip() <= "2027-12-31")
+    ]
+    ok7 = len(out_of_range) == 0
+    results.append(
+        ExpectationResult(
+            "effective_date_in_valid_range",
+            ok7,
+            "halt",
+            f"out_of_range_count={len(out_of_range)}, metric_impact=detected_future_or_stale_dates",
+        )
+    )
+
+    # E8: doc_id_distribution_balanced — mỗi doc_id trong allowlist phải có ≥1 chunk
+    # Phát hiện khi toàn bộ policy bị loại (quarantine)
+    allowlist = {"policy_refund_v4", "sla_p1_2026", "it_helpdesk_faq", "hr_leave_policy"}
+    present_doc_ids = {r.get("doc_id") for r in cleaned_rows}
+    missing_doc_ids = allowlist - present_doc_ids
+    ok8 = len(missing_doc_ids) == 0
+    results.append(
+        ExpectationResult(
+            "doc_id_distribution_balanced",
+            ok8,
+            "warn",
+            f"missing_doc_ids={missing_doc_ids if missing_doc_ids else 'none'}, metric_impact=found_completely_missing_policy",
+        )
+    )
+
     halt = any(not r.passed and r.severity == "halt" for r in results)
     return results, halt

@@ -43,7 +43,8 @@ _________________
 
 | Rule / Expectation mới (tên ngắn) | Trước (số liệu) | Sau / khi inject (số liệu) | Chứng cứ (log / CSV / commit) |
 |-----------------------------------|------------------|-----------------------------|-------------------------------|
-| … | … | … | … |
+| **E7: effective_date_in_valid_range** (P4) | out_of_range_count=0 | out_of_range_count=0 (no false alarm) | logs: p4-sprint2-final, inject-bad-p4-test |
+| **E8: doc_id_distribution_balanced** (P4) | missing_doc_ids=none | missing_doc_ids=none (all 4 doc_ids present) | before/after comparison in P4_SPRINT_3_INJECTION_RESULTS.md |
 
 **Rule chính (baseline + mở rộng):**
 
