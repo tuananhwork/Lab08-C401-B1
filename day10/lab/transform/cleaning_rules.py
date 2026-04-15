@@ -3,6 +3,10 @@ Cleaning rules — raw export → cleaned rows + quarantine.
 
 Baseline gồm các failure mode mở rộng (allowlist doc_id, parse ngày, HR stale version).
 Sinh viên thêm ≥3 rule mới: mỗi rule phải ghi `metric_impact` (xem README — chống trivial).
+
+P2 — Rule 1: BOM / control character detection → quarantine
+P2 — Rule 2: Whitespace collapse + min length check → quarantine if < 20 chars
+P3 — Rule 3+: Validate exported_at, quarantine if future date
 """
 
 from __future__ import annotations
@@ -53,6 +57,36 @@ def _normalize_effective_date(raw: str) -> Tuple[str, str]:
     return "", "invalid_effective_date_format"
 
 
+def _has_control_characters(text: str) -> bool:
+    """
+    P2 — Rule 1 helper: Check for BOM or control characters.
+    Returns True if text contains BOM (\ufeff) or control chars (excluding normal whitespace).
+    """
+    if "\ufeff" in text:
+        return True
+    # Check for control characters (ASCII 0-31, 127) excluding common whitespace
+    for ch in text:
+        code = ord(ch)
+        if code == 127:  # DEL
+            return True
+        if code < 32 and ch not in ("\n", "\r", "\t"):
+            return True
+    return False
+
+
+def _collapse_whitespace(text: str) -> tuple[str, bool]:
+    """
+    P2 — Rule 2 helper: Collapse multiple spaces into one.
+    Returns (cleaned_text, was_modified).
+    """
+    original = text
+    # Replace multiple spaces/tabs with single space
+    cleaned = re.sub(r"[ \t]+", " ", text)
+    # Strip leading/trailing whitespace
+    cleaned = cleaned.strip()
+    return cleaned, cleaned != original
+
+
 def load_raw_csv(path: Path) -> List[Dict[str, str]]:
     rows: List[Dict[str, str]] = []
     with path.open(encoding="utf-8", newline="") as f:
@@ -77,11 +111,21 @@ def clean_rows(
     4) Quarantine: chunk_text rỗng hoặc effective_date rỗng sau chuẩn hoá.
     5) Loại trùng nội dung chunk_text (giữ bản đầu).
     6) Fix stale refund: policy_refund_v4 chứa '14 ngày làm việc' → 7 ngày.
+
+    P2 — Rule 1: BOM / control char → quarantine
+    P2 — Rule 2: Whitespace collapse + quarantine if < 20 chars after normalize
     """
     quarantine: List[Dict[str, Any]] = []
     seen_text: set[str] = set()
     cleaned: List[Dict[str, Any]] = []
     seq = 0
+
+    # P2 metric tracking
+    metrics = {
+        "rule1_bom_control_quarantine": 0,
+        "rule2_whitespace_collapsed": 0,
+        "rule2_short_text_quarantine": 0,
+    }
 
     for raw in rows:
         doc_id = raw.get("doc_id", "")
@@ -115,13 +159,34 @@ def clean_rows(
             quarantine.append({**raw, "reason": "missing_chunk_text"})
             continue
 
-        key = _norm_text(text)
+        # P2 — Rule 1: Check for BOM / control characters
+        if _has_control_characters(text):
+            metrics["rule1_bom_control_quarantine"] += 1
+            quarantine.append({**raw, "reason": "bom_or_control_characters_detected"})
+            continue
+
+        # P2 — Rule 2: Whitespace collapse
+        collapsed_text, was_collapsed = _collapse_whitespace(text)
+        if was_collapsed:
+            metrics["rule2_whitespace_collapsed"] += 1
+
+        # P2 — Rule 2: Check minimum length after collapse
+        if len(collapsed_text) < 20:
+            metrics["rule2_short_text_quarantine"] += 1
+            quarantine.append({
+                **raw,
+                "reason": "chunk_too_short_after_whitespace_normalize",
+                "collapsed_length": len(collapsed_text),
+            })
+            continue
+
+        key = _norm_text(collapsed_text)
         if key in seen_text:
             quarantine.append({**raw, "reason": "duplicate_chunk_text"})
             continue
         seen_text.add(key)
 
-        fixed_text = text
+        fixed_text = collapsed_text
         if apply_refund_window_fix and doc_id == "policy_refund_v4":
             if "14 ngày làm việc" in fixed_text:
                 fixed_text = fixed_text.replace(
@@ -140,6 +205,10 @@ def clean_rows(
                 "exported_at": exported_at or "",
             }
         )
+
+    # Log metric_impact for P2 rules
+    if any(v > 0 for v in metrics.values()):
+        print(f"[P2 Metric Impact] {metrics}")
 
     return cleaned, quarantine
 
