@@ -72,11 +72,23 @@ _________________
 
 **Kịch bản inject:**
 
-_________________
+P5 chạy 3 pha để tạo bằng chứng before/after trên cùng collection `day10_kb`:
+
+1) **Baseline sạch**: `python etl_pipeline.py run --run-id p5-baseline` (có refund fix 14→7) rồi chạy `python eval_retrieval.py --out artifacts/eval/p5_baseline_eval.csv`.
+2) **Inject corruption**: `python etl_pipeline.py run --run-id p5-inject-bad --no-refund-fix --skip-validate` để cố ý đưa dữ liệu refund cũ vào index; expectation `refund_no_stale_14d_window` fail nhưng vẫn embed để đo tác động retrieval; sau đó chạy `python eval_retrieval.py --out artifacts/eval/p5_after_inject_bad.csv`.
+3) **Fix lại dữ liệu**: `python etl_pipeline.py run --run-id p5-after-fix` rồi chạy `python eval_retrieval.py --out artifacts/eval/p5_after_fix_eval.csv` và `python grading_run.py --questions data/test_questions.json --out artifacts/eval/grading_run.jsonl`.
+
+Manifest chứng cứ: `artifacts/manifests/manifest_p5-baseline.json`, `manifest_p5-inject-bad.json`, `manifest_p5-after-fix.json`.
 
 **Kết quả định lượng (từ CSV / bảng):**
 
-_________________
+So sánh theo 4 câu hỏi retrieval chuẩn:
+
+- **Baseline (`p5_baseline_eval.csv`)**: `contains_expected=4/4`, `hits_forbidden=0/4`.
+- **After inject (`p5_after_inject_bad.csv`)**: `contains_expected=4/4`, nhưng `hits_forbidden=1/4` (câu `q_refund_window` bị dính nội dung cấm trong top-k do dữ liệu refund cũ quay lại).
+- **After fix (`p5_after_fix_eval.csv`)**: phục hồi về `contains_expected=4/4`, `hits_forbidden=0/4`.
+
+Kết luận: inject corruption không làm giảm recall keyword (`contains_expected` giữ nguyên), nhưng làm giảm **độ an toàn/ngữ nghĩa đúng phiên bản** của câu trả lời (tăng `hits_forbidden`). Sau khi bật lại refund fix và re-embed, chất lượng retrieval trở về baseline. Điều này chứng minh pipeline clean + expectation có tác động trực tiếp đến hành vi truy xuất của hệ thống RAG.
 
 ---
 
