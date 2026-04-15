@@ -2,8 +2,9 @@
 
 **Họ và tên:** Nguyễn Mai Phương
 **Vai trò:** P3 — Cleaning Rule Dev B
+**MSV:** 2A202600175
 **Ngày nộp:** 2026-04-15
-
+**Độ dài yêu cầu:** **400–650 từ**
 ---
 
 ## 1. Tôi phụ trách phần nào? (80–120 từ)
