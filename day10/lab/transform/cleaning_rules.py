@@ -14,6 +14,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -55,6 +56,27 @@ def _normalize_effective_date(raw: str) -> Tuple[str, str]:
         dd, mm, yyyy = m.group(1), m.group(2), m.group(3)
         return f"{yyyy}-{mm}-{dd}", ""
     return "", "invalid_effective_date_format"
+
+
+def _normalize_exported_at(raw: str) -> Tuple[str, str]:
+    """
+    Trả về (iso_datetime, error_reason).
+    iso_datetime rỗng nếu không parse được.
+    """
+    s = (raw or "").strip()
+    if not s:
+        return "", "missing_exported_at"
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        return "", "invalid_exported_at_format"
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    return dt.isoformat(), ""
 
 
 def _has_control_characters(text: str) -> bool:
@@ -114,17 +136,20 @@ def clean_rows(
 
     P2 — Rule 1: BOM / control char → quarantine
     P2 — Rule 2: Whitespace collapse + quarantine if < 20 chars after normalize
+    P3 — Rule 3: Validate exported_at format / future date → quarantine
     """
     quarantine: List[Dict[str, Any]] = []
     seen_text: set[str] = set()
     cleaned: List[Dict[str, Any]] = []
     seq = 0
 
-    # P2 metric tracking
+    # P2/P3 metric tracking
     metrics = {
         "rule1_bom_control_quarantine": 0,
         "rule2_whitespace_collapsed": 0,
         "rule2_short_text_quarantine": 0,
+        "rule3_exported_at_invalid_quarantine": 0,
+        "rule3_exported_at_future_quarantine": 0,
     }
 
     for raw in rows:
@@ -180,6 +205,25 @@ def clean_rows(
             })
             continue
 
+        # P3 — Validate exported_at and quarantine future or invalid timestamps
+        exp_norm, exp_err = _normalize_exported_at(exported_at)
+        if exp_err == "missing_exported_at":
+            metrics["rule3_exported_at_invalid_quarantine"] += 1
+            quarantine.append({**raw, "reason": exp_err})
+            continue
+        if exp_err == "invalid_exported_at_format":
+            metrics["rule3_exported_at_invalid_quarantine"] += 1
+            quarantine.append({**raw, "reason": exp_err, "exported_at_raw": exported_at})
+            continue
+        if datetime.fromisoformat(exp_norm) > datetime.now(timezone.utc):
+            metrics["rule3_exported_at_future_quarantine"] += 1
+            quarantine.append({
+                **raw,
+                "reason": "future_exported_at",
+                "exported_at_normalized": exp_norm,
+            })
+            continue
+
         key = _norm_text(collapsed_text)
         if key in seen_text:
             quarantine.append({**raw, "reason": "duplicate_chunk_text"})
@@ -202,13 +246,13 @@ def clean_rows(
                 "doc_id": doc_id,
                 "chunk_text": fixed_text,
                 "effective_date": eff_norm,
-                "exported_at": exported_at or "",
+                "exported_at": exp_norm or "",
             }
         )
 
-    # Log metric_impact for P2 rules
+    # Log metric_impact for P2/P3 rules
     if any(v > 0 for v in metrics.values()):
-        print(f"[P2 Metric Impact] {metrics}")
+        print(f"[P2/P3 Metric Impact] {metrics}")
 
     return cleaned, quarantine
 
