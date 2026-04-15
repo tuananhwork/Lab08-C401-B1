@@ -19,11 +19,12 @@
 
 - `etl_pipeline.py` — entrypoint chính: điều phối luồng ingest → clean → validate → embed → manifest → freshness check.
 - `contracts/data_contract.yaml` — điền `owner_team` và `alert_channel`.
-- Chạy tất cả pipeline run: `sprint1`, `inject-bad`, `after-fix`, `merged-final`.
+- Sửa `eval_retrieval.py` và `grading_run.py` để hỗ trợ OpenAI embedding.
+- Chạy tất cả pipeline run: `sprint1`, `inject-bad`, `after-fix`, `merged-final`, `final`.
 
 **Kết nối với thành viên khác:**
 
-Tôi nhận code cleaning rules từ P2/P3 (`transform/cleaning_rules.py`) và expectations từ P4 (`quality/expectations.py`), sau đó chạy pipeline tổng hợp `merged-final` để verify tất cả exit 0. Kết quả cleaned CSV và Chroma DB được P5 dùng để chạy `eval_retrieval.py` so sánh before/after.
+Tôi nhận code cleaning rules từ P2/P3 (`transform/cleaning_rules.py`) và expectations từ P4 (`quality/expectations.py`), sau đó chạy pipeline tổng hợp `merged-final` để verify tất cả exit 0. Kết quả cleaned CSV và Chroma DB được P5 dùng để chạy `eval_retrieval.py` so sánh before/after. Cuối cùng chạy `run_id=final` để tạo chroma_db sạch và `grading_run.py` trên `test_questions.json` → 4/4 câu `contains_expected=true`, `hits_forbidden=false`.
 
 **Bằng chứng (commit / comment trong code):**
 
@@ -45,7 +46,7 @@ Tôi sửa cả 3 file: `etl_pipeline.py`, `eval_retrieval.py`, `grading_run.py`
 
 **Metric phát hiện:** Exit code 3 từ `cmd_embed_internal()` + error log `"ERROR: chromadb chưa cài"` ban đầu, sau đó `ValueError` từ chromadb embedding function.
 
-**Fix:** Thay vì downgrade Python, tôi sửa pipeline hỗ trợ dual provider (OpenAI / local) đọc từ `.env`. Sau fix, `run_id=merged-final` exit 0 với `embed_upsert count=9`.
+**Fix:** Thay vì downgrade Python, tôi sửa pipeline hỗ trợ dual provider (OpenAI / local) đọc từ `.env`. Sau fix, `run_id=merged-final` exit 0 với `embed_upsert count=9`. Tiếp tục gặp lỗi chromadb bị mất khỏi venv (dependency conflict khi cài sentence-transformers `--no-deps`), phải cài lại `pip install chromadb openai`. Run cuối `run_id=final` xác nhận pipeline exit 0 ổn định.
 
 ---
 
@@ -61,7 +62,15 @@ Expectation `refund_no_stale_14d_window` FAIL (violations=1), nhưng `--skip-val
 ```
 q_refund_window | hits_forbidden=no  | top1: "7 ngày làm việc"
 ```
-Tất cả 8 expectations OK, `embed_prune_removed=1` (xóa chunk stale), eval 4/4 câu `contains_expected=yes`, `hits_forbidden=no`. Câu `q_leave_version` có `top1_doc_expected=yes` (hr_leave_policy, 12 ngày phép).
+Tất cả 8 expectations OK, `embed_prune_removed=1` (xóa chunk stale), eval 4/4 câu `contains_expected=yes`, `hits_forbidden=no`. Câu `q_leave_version` có `top1_doc_matches=true` (hr_leave_policy, 12 ngày phép).
+
+**Grading (run_id=final, `grading_run.jsonl`):**
+```
+q_refund_window  | contains_expected=true | hits_forbidden=false
+q_p1_sla         | contains_expected=true | hits_forbidden=false
+q_lockout        | contains_expected=true | hits_forbidden=false
+q_leave_version  | contains_expected=true | hits_forbidden=false | top1_doc_matches=true
+```
 
 ---
 
