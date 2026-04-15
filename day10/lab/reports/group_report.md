@@ -18,8 +18,8 @@
 ---
 
 > **Nộp tại:** `reports/group_report.md`  
-> **Run ID chính:** `p5-baseline`, `p5-inject-bad`, `p5-after-fix`  
-> **Artifact chứng cứ:** `artifacts/eval/p5_baseline_eval.csv`, `artifacts/eval/p5_after_inject_bad.csv`, `artifacts/manifests/manifest_p5-baseline.json`
+> **Run ID chính:** `final` (baseline sạch), `inject-bad` (inject corruption), `after-fix` (khôi phục)  
+> **Artifact chứng cứ:** `artifacts/eval/baseline_eval.csv`, `artifacts/eval/after_inject_bad.csv`, `artifacts/eval/after_fix_eval.csv`, `artifacts/manifests/manifest_final.json`
 
 ---
 
@@ -30,24 +30,23 @@ Dữ liệu gốc là CSV export từ hệ thống quản lý policy (`data/raw/
 
 **Chuỗi luồng end-to-end:**
 
-1. **Ingest** (P1): Load raw CSV → parse 14 rows, ghi log run_id
-2. **Clean** (P2, P3): Áp 6 rule (baseline + P2/P3 mới) → tách thành 9 cleaned + 5 quarantine
-3. **Validate** (P4): Kiểm tra 6 expectations (4 halt + 2 warn), tất cả pass ✓
-4. **Embed** (P5): Upsert 9 chunks vào Chroma collection `day10_kb`, prune stale IDs
+1. **Ingest** (P1): Load raw CSV → parse 14 rows, ghi log `run_id`
+2. **Clean** (P2, P3): Áp 9 rule (6 baseline + 3 mới P2/P3) → tách thành 9 cleaned + 5 quarantine
+3. **Validate** (P4): Kiểm tra 8 expectations (6 halt + 2 warn), tất cả pass ✓
+4. **Embed** (P1/P5): Upsert 9 chunks vào Chroma collection `day10_kb` (OpenAI `text-embedding-3-small`), prune stale IDs
 5. **Retrieve + Eval** (P5): Chạy 4 câu hỏi benchmark, so sánh before/after
 
-**Lệnh chạy một dòng (copy từ README thực tế):**
+**Lệnh chạy một dòng:**
 
 ```bash
-python etl_pipeline.py run --run-id p5-baseline && \
-python eval_retrieval.py --out artifacts/eval/p5_baseline_eval.csv && \
-python freshness_check.py --manifest artifacts/manifests/manifest_p5-baseline.json
+python3 etl_pipeline.py run --run-id final && \
+python3 eval_retrieval.py --out artifacts/eval/baseline_eval.csv
 ```
 
 **Run ID và artifact:**
-- `run_id`: `p5-baseline` (baseline sạch), `p5-inject-bad` (inject corruption), `p5-after-fix` (fix lại)
-- Log: `artifacts/logs/run_p5-baseline.log`
-- Manifest: `artifacts/manifests/manifest_p5-baseline.json` → `{"run_id": "p5-baseline", "raw_records": 14, "cleaned_records": 9, "quarantine_records": 5, "latest_exported_at": "2026-04-10T08:00:00+00:00"}`
+- `run_id`: `final` (baseline sạch), `inject-bad` (inject corruption), `after-fix` (fix lại)
+- Log: `artifacts/logs/run_final.log`
+- Manifest: `artifacts/manifests/manifest_final.json` → `{"run_id": "final", "raw_records": 14, "cleaned_records": 9, "quarantine_records": 5, "latest_exported_at": "2026-04-10T08:00:00+00:00"}`
 
 ---
 
@@ -58,8 +57,8 @@ python freshness_check.py --manifest artifacts/manifests/manifest_p5-baseline.js
 Baseline đã có 6 rules: allowlist doc_id, normalize effective_date, HR stale < 2026, deduplicate, refund 14→7 fix, min_one_row check.
 
 Nhóm thêm:
-- **P2-Rule1:** BOM/control char → quarantine (phát hiện ký tự `\ufeff` hoặc ASCII 0-31). **Metric:** `rule1_bom_control_quarantine=0` (baseline test case không có BOM actual)
-- **P2-Rule2:** Whitespace collapse + min length 20 → quarantine nếu < 20 ký tự sau normalize. **Metric:** `rule2_whitespace_collapsed=0`, `rule2_short_text_quarantine=0` (test data không có case này)
+- **P2-Rule1:** BOM/control char → quarantine (phát hiện ký tự `\ufeff` hoặc ASCII 0-31). **Metric:** `rule1_bom_control_quarantine=0` trên CSV mẫu (rows có BOM trong expanded CSV bị phát hiện)
+- **P2-Rule2:** Whitespace collapse + min length 20 → quarantine nếu < 20 ký tự sau normalize. **Metric:** `rule2_whitespace_collapsed=1` (row 12 collapsed), `rule2_short_text_quarantine=1` (row 13: "Ngắn quá." = 9 chars)
 - **P3-Rule3:** Validate exported_at ISO format, quarantine nếu future date. **Metric:** `rule3_exported_at_invalid_quarantine=0`, `rule3_exported_at_future_quarantine=0`
 - **P4-Expect1:** `effective_date_in_valid_range` (2024–2027). **Metric:** `out_of_range_count=0` ✓
 - **P4-Expect2:** `doc_id_distribution_balanced` (mỗi doc_id ≥1 chunk). **Metric:** `missing_doc_ids=[]` ✓ (all 4 doc_ids: policy_refund_v4, sla_p1_2026, it_helpdesk_faq, hr_leave_policy present)
@@ -68,15 +67,15 @@ Nhóm thêm:
 
 | Rule / Expectation | Trước (baseline) | Sau (sau P2/P3/P4 merge) | Chứng cứ |
 |---|---|---|---|
-| P2-Rule1: BOM/control_char | 0 detected | 0 quarantined | `artifacts/quarantine/quarantine_p5-baseline.csv` |
-| P2-Rule2: Whitespace + min20 | 0 affected | 0 quarantined | test_p2_cleaning_rules.py pass |
-| P3-Rule3: Validate exported_at | 0 invalid | 0 quarantined | manifest: `latest_exported_at=2026-04-10T08:00:00+00:00` ✓ |
-| P4-Expect1: date_range_2024-27 | pass | pass | expectation log: E7 PASS |
-| P4-Expect2: doc_id_balanced | pass | pass (4/4 doc_ids) | expectation log: E8 PASS |
-| **Cumulative: cleaned_records** | 9 | 9 (no change) | manifest_p5-baseline.json |
-| **Cumulative: quarantine_records** | 5 | 5 (no change) | manifest_p5-baseline.json |
+| P2-Rule1: BOM/control_char | 0 detected | 0 quarantined (CSV mẫu không có BOM) | `artifacts/quarantine/quarantine_final.csv` |
+| P2-Rule2: Whitespace + min20 | 0 collapsed, 0 short | 1 collapsed, 1 quarantined ("Ngắn quá." 9 chars) | log: `rule2_whitespace_collapsed=1, rule2_short_text_quarantine=1` |
+| P3-Rule3: Validate exported_at | 0 invalid | 0 quarantined | manifest_final.json: `latest_exported_at=2026-04-10T08:00:00+00:00` ✓ |
+| P4-E7: date_range_2024-27 | pass | pass (out_of_range_count=0) | `run_final.log`: E7 OK (halt) |
+| P4-E8: doc_id_balanced | pass | pass (4/4 doc_ids present) | `run_final.log`: E8 OK (warn) |
+| **Cumulative: cleaned_records** | — | 9 | manifest_final.json |
+| **Cumulative: quarantine_records** | — | 5 | manifest_final.json |
 
-**Quyết định:** Khi P2/P3 rule không phát hiện issue (vì test data sạch), team quyết định giữ logic rule để sẵn sàng inject corruption Sprint 3. Expectation halt nếu fail → pipeline stop, không embed dữ liệu sai.
+**Quyết định:** P2-Rule2 phát hiện 1 row whitespace + 1 row quá ngắn (metric thay đổi thực tế). P2-Rule1 và P3-Rule3 không phát hiện trên CSV mẫu nhưng team giữ logic để phòng thủ injection. Expectation halt nếu fail → pipeline stop, không embed dữ liệu sai.
 
 ---
 
@@ -84,38 +83,38 @@ Nhóm thêm:
 
 **Kịch bản inject Sprint 3:**
 
-P5 tạo 3 snapshot để đo tác động retrieval:
+Nhóm tạo 3 snapshot để đo tác động retrieval:
 
-1. **Baseline sạch:** `python etl_pipeline.py run --run-id p5-baseline` (refund fix 14→7 bật) → embed sạch vào Chroma
-2. **Inject corruption:** `python etl_pipeline.py run --run-id p5-inject-bad --no-refund-fix --skip-validate` (cố ý tắt refund fix, bypass expectation halt) → dữ liệu refund 14 ngày cũ vào index
-3. **Fix lại:** `python etl_pipeline.py run --run-id p5-after-fix` (refund fix bật lại) → phục hồi dữ liệu sạch
+1. **Baseline sạch:** `python3 etl_pipeline.py run --run-id final` (refund fix 14→7 bật) → embed sạch vào Chroma
+2. **Inject corruption:** `python3 etl_pipeline.py run --run-id inject-bad --no-refund-fix --skip-validate` (cố ý tắt refund fix, bypass expectation halt) → dữ liệu refund 14 ngày cũ vào index. Log: `expectation[refund_no_stale_14d_window] FAIL (halt) :: violations=1`, `embed_prune_removed=1`
+3. **Fix lại:** `python3 etl_pipeline.py run --run-id after-fix` (refund fix bật lại) → phục hồi dữ liệu sạch, `embed_prune_removed=1`
 
 **Kết quả định lượng:**
 
-**Baseline (`p5_baseline_eval.csv`):**
+**Baseline (`baseline_eval.csv`, run_id=final):**
 ```
-q_refund_window:       contains_expected=yes, hits_forbidden=no  ✓
-q_p1_sla:              contains_expected=yes, hits_forbidden=no  ✓
-q_lockout:             contains_expected=yes, hits_forbidden=no  ✓
-q_leave_version:       contains_expected=yes, hits_forbidden=no  ✓
+q_refund_window:       contains_expected=yes, hits_forbidden=no,  top1=policy_refund_v4  ✓
+q_p1_sla:              contains_expected=yes, hits_forbidden=no,  top1=sla_p1_2026       ✓
+q_lockout:             contains_expected=yes, hits_forbidden=no,  top1=it_helpdesk_faq   ✓
+q_leave_version:       contains_expected=yes, hits_forbidden=no,  top1=hr_leave_policy   ✓ (top1_doc_matches=true)
 → Score: 4/4 chính xác
 ```
 
-**After inject (`p5_after_inject_bad.csv`):**
+**After inject (`after_inject_bad.csv`, run_id=inject-bad):**
 ```
-q_refund_window:       contains_expected=yes, hits_forbidden=yes ✗ (chứa dữ liệu "14 ngày" cũ)
-q_p1_sla:              contains_expected=yes, hits_forbidden=no  ✓
-q_lockout:             contains_expected=yes, hits_forbidden=no  ✓
-q_leave_version:       contains_expected=yes, hits_forbidden=no  ✓
-→ Score: 3/4 chính xác (recall ok, precision ↓)
+q_refund_window:       contains_expected=yes, hits_forbidden=yes, top1="14 ngày làm việc" ✗
+q_p1_sla:              contains_expected=yes, hits_forbidden=no,  top1=sla_p1_2026       ✓
+q_lockout:             contains_expected=yes, hits_forbidden=no,  top1=it_helpdesk_faq   ✓
+q_leave_version:       contains_expected=yes, hits_forbidden=no,  top1=hr_leave_policy   ✓ (top1_doc_matches=true)
+→ Score: 3/4 chính xác (recall ok, precision ↓ do chunk stale)
 ```
 
-**After fix (`p5_after_fix_eval.csv`):**
+**After fix (`after_fix_eval.csv`, run_id=after-fix):**
 ```
-q_refund_window:       contains_expected=yes, hits_forbidden=no  ✓
-q_p1_sla:              contains_expected=yes, hits_forbidden=no  ✓
-q_lockout:             contains_expected=yes, hits_forbidden=no  ✓
-q_leave_version:       contains_expected=yes, hits_forbidden=no  ✓
+q_refund_window:       contains_expected=yes, hits_forbidden=no,  top1="7 ngày làm việc"  ✓
+q_p1_sla:              contains_expected=yes, hits_forbidden=no,  top1=sla_p1_2026       ✓
+q_lockout:             contains_expected=yes, hits_forbidden=no,  top1=it_helpdesk_faq   ✓
+q_leave_version:       contains_expected=yes, hits_forbidden=no,  top1=hr_leave_policy   ✓ (top1_doc_matches=true)
 → Score: 4/4 chính xác (phục hồi baseline)
 ```
 
@@ -127,23 +126,14 @@ q_leave_version:       contains_expected=yes, hits_forbidden=no  ✓
 
 **SLA chọn:** 24 giờ (sla_hours=24.0)
 
-**Kết quả freshness_check:**
+**Kết quả freshness_check (run_id=final):**
 
-```python
-check_manifest_freshness(
-    manifest_path=Path("artifacts/manifests/manifest_p5-baseline.json"),
-    sla_hours=24.0,
-    now=datetime(2026, 4, 15, 9, 0, 0, tzinfo=timezone.utc)
-)
-→ ("PASS", {
-    "latest_exported_at": "2026-04-10T08:00:00+00:00",
-    "age_hours": 120.667,  # ~5 ngày
-    "sla_hours": 24.0
-})
-# FAIL vì age_hours > sla_hours
+```
+python3 etl_pipeline.py freshness --manifest artifacts/manifests/manifest_final.json
+→ FAIL {"latest_exported_at": "2026-04-10T08:00:00+00:00", "age_hours": 121.131, "sla_hours": 24.0, "reason": "freshness_sla_exceeded"}
 ```
 
-Nếu tăng SLA lên 120 giờ (5 ngày) → "PASS". Team chọn 24h để tạo áp lực update data thường xuyên (yêu cầu export mới ít nhất 1 lần/ngày).
+CSV export từ ngày 2026-04-10, đã hơn 5 ngày → FAIL vì vượt SLA 24h. Team chọn 24h để tạo áp lực update data thường xuyên. Trong thực tế cần re-export CSV mới; trong lab đây là expected behavior (data mẫu cố định).
 
 ---
 
@@ -176,5 +166,5 @@ Nhóm Day 10 **khuyến nghị (B)** vì:
 
 ---
 
-**Tổng kết:** Pipeline Day 10 hoàn thiện 80% chức năng monitoring + retrieval quality assurance. Dữ liệu cleaned → embed → eval tạo full trace before/after. Freshness + expectation + runbook tạo guardrail tự động phát hiện lỗi. Sprint 4 tiếp tục tối ưu alert + ownership.
+**Tổng kết:** Pipeline Day 10 hoàn thiện đầy đủ luồng ETL + monitoring + retrieval quality assurance. Dữ liệu 14 raw → 9 cleaned + 5 quarantine → embed 9 chunks → eval 4/4 pass. Inject corruption chứng minh `hits_forbidden` tăng khi bỏ refund fix, và phục hồi hoàn toàn sau re-run. 8 expectations (6 halt + 2 warn) + freshness SLA 24h + runbook 5 mục tạo guardrail phát hiện lỗi. Embedding dùng OpenAI `text-embedding-3-small` (do Python 3.14 không hỗ trợ PyTorch/sentence-transformers).
 
