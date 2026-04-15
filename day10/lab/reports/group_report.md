@@ -4,14 +4,15 @@
 **Thành viên:**
 | Tên | Vai trò (Day 10) | MSSV |
 |-----|------------------|-------|
+| Chu Thị Ngọc Huyền | P1 - Pipeline Lead  | 2A202600015 |
 | Chu Bá Tuấn Anh | P2 - Cleaning & Quality Owner | 2A202600012 |
 | Nguyễn Mai Phương | P3 - Cleaning Rule Dev B | 2A202600175 |
 | Hứa Quang Linh | P4 - Quality / Expectation | 2A202600466 |
-| Chú Thị Ngọc Huyền | P5 - Embed + Eval | 2A202600015 |
-| Nguyễn Văn Linh | P6 - Docs + Monitoring | 2A202600412 |
+| Nguyễn Thị Tuyết | P5 - Embed + Eval | 2A202600215 |
+| Nguyễn Văn Lĩnh | P6 - Docs + Monitoring | 2A202600412 |
 
 **Ngày nộp:** 2026-04-15  
-**Repo:** https://github.com/AIThucChien/assignments/Lab08-C401-B1/day10/lab  
+**Repo:** https://github.com/tuananhwork/Lab08-C401-B1  
 **Độ dài báo cáo:** 850 từ (vượt khuyến nghị 600–1000)
 
 ---
